@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -31,8 +31,10 @@ jobs:
           sudo apt-get install -y --no-install-recommends mafft fasttree
           command -v mafft
           mafft --version
-          command -v fasttree
-          fasttree -help 2>&1 | head -n 2 || true
+          FASTTREE_BIN="$(command -v fasttree || command -v FastTree)"
+          test -n "$FASTTREE_BIN"
+          "$FASTTREE_BIN" -help > /tmp/fasttree-help.txt 2>&1 || true
+          head -n 2 /tmp/fasttree-help.txt
 
       - name: Install JavaScript validation tools
         run: npm install --ignore-scripts --no-audit --no-fund --no-package-lock
@@ -55,7 +57,7 @@ jobs:
           set -euo pipefail
           PORT=8765 python main.py > /tmp/a2ca-server.log 2>&1 &
           SERVER_PID=$!
-          trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
+          trap 'rc=$?; if [ $rc -ne 0 ]; then echo "--- Server log ---"; cat /tmp/a2ca-server.log || true; fi; kill $SERVER_PID 2>/dev/null || true; exit $rc' EXIT
 
           READY=0
           for i in {1..60}; do
@@ -79,10 +81,30 @@ jobs:
             exit 1
           fi
 
-          curl --fail --silent http://127.0.0.1:8765/health | grep -q '^ok$'
-          curl --fail --silent --location http://127.0.0.1:8765/ | grep -q "Amino Acid Cluster Analysis"
-          curl --fail --silent -H 'X-A2CA-Request: web' http://127.0.0.1:8765/api/meta | grep -q '"version":"2.0.43"'
-          curl --fail --silent -H 'X-A2CA-Request: web' http://127.0.0.1:8765/api/status | grep -q '"status":"ok"'
+          # Avoid `curl | grep -q` under `set -o pipefail`: grep may exit as soon
+          # as it finds a match, causing curl to receive SIGPIPE and report a
+          # false failure (curl exit 23) even though the HTTP request succeeded.
+          curl --fail --silent http://127.0.0.1:8765/health -o /tmp/a2ca-health.txt
+          grep -qx 'ok' /tmp/a2ca-health.txt
+
+          curl --fail --silent --location http://127.0.0.1:8765/ -o /tmp/a2ca-home.html
+          grep -Fq "Amino Acid Cluster Analysis" /tmp/a2ca-home.html
+
+          curl --fail --silent -H 'X-A2CA-Request: web' http://127.0.0.1:8765/api/meta -o /tmp/a2ca-meta.json
+          python - <<'PY'
+          import json
+          with open('/tmp/a2ca-meta.json', encoding='utf-8') as handle:
+              meta = json.load(handle)
+          assert meta.get('version') == '2.0.43', meta
+          PY
+
+          curl --fail --silent -H 'X-A2CA-Request: web' http://127.0.0.1:8765/api/status -o /tmp/a2ca-status.json
+          python - <<'PY'
+          import json
+          with open('/tmp/a2ca-status.json', encoding='utf-8') as handle:
+              status = json.load(handle)
+          assert status.get('status') == 'ok', status
+          PY
 
           cat >/tmp/a2ca-input.fasta <<'FASTA'
           >seq1
