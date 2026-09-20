@@ -16,6 +16,29 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "resources"
 
+IGNORED_DIRS = {
+    ".git",
+    "node_modules",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "coverage",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+}
+
+
+def is_ignored(path: Path) -> bool:
+    """Return True for third-party, virtual-env, and build-output paths."""
+    try:
+        relative = path.relative_to(ROOT)
+    except ValueError:
+        return True
+    return any(part in IGNORED_DIRS for part in relative.parts)
+
+
 
 class HtmlRefs(HTMLParser):
     def __init__(self, file: Path) -> None:
@@ -108,6 +131,8 @@ def check_version(errors: list[str]) -> None:
     if f"version: {version}" not in citation:
         errors.append("CITATION.cff version does not match VERSION")
     for file in ROOT.rglob("*"):
+        if is_ignored(file):
+            continue
         if not file.is_file() or file.name in {"CHANGELOG.md", "validate_repo.py"}:
             continue
         if file.suffix.lower() not in {".py", ".js", ".html", ".css", ".md", ".json", ".toml", ".cff"}:
@@ -120,6 +145,8 @@ def check_version(errors: list[str]) -> None:
 def check_generated_files(errors: list[str]) -> None:
     bad = []
     for p in ROOT.rglob("*"):
+        if is_ignored(p):
+            continue
         if "__pycache__" in p.parts or p.suffix in {".pyc", ".pyo"}:
             bad.append(str(p.relative_to(ROOT)))
     if bad:
