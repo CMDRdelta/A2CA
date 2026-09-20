@@ -51,7 +51,7 @@ def local_target(base: Path, ref: str) -> Path | None:
 
 def check_html(errors: list[str]) -> None:
     root_resolved = ROOT.resolve()
-    for file in sorted(ROOT.rglob("*.html")):
+    for file in sorted(p for p in ROOT.rglob("*.html") if not is_ignored(p)):
         parser = HtmlRefs(file)
         parser.feed(file.read_text(encoding="utf-8"))
         seen: set[str] = set()
@@ -76,7 +76,7 @@ def check_html(errors: list[str]) -> None:
 
 
 def check_css(errors: list[str]) -> None:
-    for file in sorted(ROOT.rglob("*.css")):
+    for file in sorted(p for p in ROOT.rglob("*.css") if not is_ignored(p)):
         text = file.read_text(encoding="utf-8")
         for ref in re.findall(r"url\(['\"]?([^'\")]+)", text):
             target = local_target(file.parent, ref)
@@ -127,7 +127,7 @@ def check_generated_files(errors: list[str]) -> None:
 
 
 def check_python(errors: list[str]) -> None:
-    for file in sorted(ROOT.rglob("*.py")):
+    for file in sorted(p for p in ROOT.rglob("*.py") if not is_ignored(p)):
         try:
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
         except SyntaxError as exc:
@@ -140,7 +140,7 @@ def check_javascript(errors: list[str]) -> None:
     except (FileNotFoundError, subprocess.CalledProcessError):
         print("Note: Node.js not available; JavaScript syntax check skipped.")
         return
-    for file in sorted(ROOT.rglob("*.js")):
+    for file in sorted(p for p in ROOT.rglob("*.js") if not is_ignored(p)):
         proc = subprocess.run(["node", "--check", str(file)], capture_output=True, text=True)
         if proc.returncode:
             errors.append(f"JavaScript syntax error in {file.relative_to(ROOT)}:\n{proc.stderr.strip()}")
