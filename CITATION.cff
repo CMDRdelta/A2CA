@@ -1,0 +1,22 @@
+cff-version: 1.2.0
+message: "If you use A2CA in your research, please cite the archived A2CA resource."
+title: "A2CA – Amino Acid Cluster Analysis"
+type: software
+authors:
+  - family-names: Eggerichs
+    given-names: Daniel
+  - family-names: Tischler
+    given-names: Dirk
+version: 2.0.40
+date-released: 2026-09-20
+repository-code: "https://github.com/CMDRdelta/A2CA"
+identifiers:
+  - type: doi
+    value: "10.57760/sciencedb.09549"
+    description: "Original A2CA R/Shiny archive in Science Data Bank"
+keywords:
+  - protein sequence analysis
+  - phylogenetics
+  - amino acid conservation
+  - coevolution
+  - protein structure
