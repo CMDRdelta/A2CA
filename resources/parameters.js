@@ -1,29 +1,6 @@
 'use strict';
 (function(){
   const $=id=>document.getElementById(id);
-  const embedded=window.parent!==window;
-
-  function requestSession(){
-    if(!embedded)return Promise.resolve(A2CA.loadSession());
-    return new Promise(resolve=>{
-      let settled=false;
-      const handler=event=>{
-        if(!A2CA.isTrustedParentMessage(event,'A2CA_SESSION'))return;
-        if(settled)return;
-        settled=true;
-        window.removeEventListener('message',handler);
-        resolve(event.data.data||A2CA.loadSession());
-      };
-      window.addEventListener('message',handler);
-      A2CA.postToParent('A2CA_REQUEST_SESSION');
-      setTimeout(()=>{
-        if(settled)return;
-        settled=true;
-        window.removeEventListener('message',handler);
-        resolve(A2CA.loadSession());
-      },500);
-    });
-  }
 
   function start(session){
     if(!session||!session.alignmentText||!session.treeText){
@@ -60,8 +37,7 @@
         }
       };
       session=data;
-      A2CA.saveSession(data);
-      if(embedded)A2CA.postToParent('A2CA_SAVE_SESSION',data);
+      A2CA.session.publish(data);
     }
 
     function render(message){
@@ -91,5 +67,5 @@
     render();
   }
 
-  requestSession().then(start);
+  A2CA.session.request().then(start);
 })();

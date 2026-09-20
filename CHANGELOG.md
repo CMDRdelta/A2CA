@@ -1,5 +1,18 @@
 # Changelog
 
+## 2.0.43 – 2026-09-20
+
+- Fixed the FASTA workflow failure caused by the undefined `looksLikeAlignedFasta()` client helper.
+- Added explicit MAFFT protein mode (`--amino`) and `--anysymbol`, configurable MAFFT threads, bounded compute queuing, clearer HTTP error classes, and identifier validation.
+- Moved FastTree 2.1.11 from browser-side BioWasm execution to the Railway server runtime and added `/api/fasttree`.
+- Added `/api/meta` and `/api/status` endpoints plus startup reporting of MAFFT/FastTree executable paths and versions.
+- Added Railpack runtime installation of both `mafft` and `fasttree`.
+- Centralized iframe/session request and publication logic in `A2CA.session` and made browser-storage write failures explicit.
+- Added `a2ca-services.js` for scientific-service calls and `a2ca-analysis-science.js` for reusable statistical/phylogenetic calculations.
+- Removed obsolete EMBL-EBI and BioWasm/Aioli workflow code and wording.
+- Strengthened validation/CI with parsed deployment configuration checks, ESLint `no-undef`, and real MAFFT/FastTree API smoke tests.
+- Made the backend read the canonical application version from `VERSION`; browser version labels/session exports now obtain it from `/api/meta`.
+
 ## 2.0.42 – 2026-09-20
 
 - Replaced the hosted EMBL-EBI MAFFT Job Dispatcher workflow with server-side `mafft --auto` execution on Railway to eliminate remote queue delays.

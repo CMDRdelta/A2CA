@@ -145,7 +145,12 @@
   function propertyNames(obj){const first=obj[Object.keys(obj)[0]]||{};return Object.keys(first);}
   function saveSession(data){
     const raw=JSON.stringify({marker:SESSION_MARKER,data});
-    try{global.sessionStorage.setItem(SESSION_KEY,raw);}catch(e){}
+    try{
+      global.sessionStorage.setItem(SESSION_KEY,raw);
+    }catch(e){
+      const detail=e&&e.message?` ${e.message}`:'';
+      throw new Error(`A2CA could not save the current session in browser storage.${detail}`);
+    }
     return raw.length;
   }
   function loadSession(){
@@ -505,6 +510,34 @@
     catch(e){if(e&&e.name==='AbortError')throw new Error(`Network request timed out after ${Math.round(timeoutMs/1000)} seconds.`);throw e;}
     finally{clearTimeout(timer);}
   }
+  let appMetaPromise=null;
+  let appMetaCache={version:''};
+  async function getAppMeta(){
+    if(appMetaCache.version)return appMetaCache;
+    if(!appMetaPromise){
+      appMetaPromise=fetchWithTimeout('/api/meta',{cache:'no-store'},10000)
+        .then(async response=>{
+          if(!response.ok)throw new Error(`A2CA metadata endpoint returned HTTP ${response.status}.`);
+          const data=await response.json();
+          if(!data||typeof data.version!=='string'||!data.version.trim())throw new Error('A2CA metadata response is invalid.');
+          appMetaCache={...data,version:data.version.trim()};
+          return appMetaCache;
+        })
+        .catch(error=>{appMetaPromise=null;throw error;});
+    }
+    return appMetaPromise;
+  }
+  async function getAppVersion(){return (await getAppMeta()).version;}
+  function hydrateVersionLabels(){
+    getAppMeta().then(meta=>{
+      if(!global.document)return;
+      global.document.querySelectorAll('[data-a2ca-version]').forEach(node=>{node.textContent=meta.version;});
+    }).catch(()=>{
+      if(!global.document)return;
+      global.document.querySelectorAll('[data-a2ca-version]').forEach(node=>{if(!node.textContent.trim()||node.textContent.trim()==='…')node.textContent='unknown';});
+    });
+  }
+
   function messageTargetOrigin(){return location.origin;}
   function messageChannel(){const key='a2ca_message_channel_v1';let channel=new URLSearchParams(location.search).get('a2caChannel')||'';try{if(channel)sessionStorage.setItem(key,channel);else channel=sessionStorage.getItem(key)||'';}catch(e){}return channel;}
   function localPageUrl(url){
@@ -525,6 +558,36 @@
     return !type||event.data.type===type;
   }
 
+  const session={
+    request(timeoutMs=500){
+      if(global.parent===global)return Promise.resolve(loadSession());
+      return new Promise(resolve=>{
+        let settled=false;
+        const finish=data=>{
+          if(settled)return;
+          settled=true;
+          global.removeEventListener('message',handler);
+          resolve(data||loadSession());
+        };
+        const handler=event=>{if(isTrustedParentMessage(event,'A2CA_SESSION'))finish(event.data.data);};
+        global.addEventListener('message',handler);
+        postToParent('A2CA_REQUEST_SESSION');
+        global.setTimeout(()=>finish(null),timeoutMs);
+      });
+    },
+    publish(data){
+      saveSession(data);
+      if(global.parent!==global)postToParent('A2CA_SAVE_SESSION',data);
+      return data;
+    },
+    clear(){
+      clearSession();
+      if(global.parent!==global)postToParent('A2CA_CLEAR_SESSION');
+    },
+    load:loadSession,
+    save:saveSession
+  };
+
 
   // Preserve the per-iframe message channel across same-origin page navigation.
   if(global.document&&typeof global.document.addEventListener==='function')global.document.addEventListener('click',event=>{
@@ -535,7 +598,12 @@
     anchor.href=localPageUrl(href);
   },true);
 
+  if(global.document&&typeof global.document.addEventListener==='function'){
+    if(global.document.readyState==='loading')global.document.addEventListener('DOMContentLoaded',hydrateVersionLabels,{once:true});
+    else hydrateVersionLabels();
+  }
+
   // Hosted web edition: Railway manages the server lifecycle.
 
-  global.A2CA={SESSION_MARKER,SESSION_FILE_MARKER,SESSION_FILE_VERSION,AA_ORDER,DEFAULT_COLORS,DEFAULT_PROPERTIES,MAX_ALIGNMENT_SEQUENCES,MAX_ALIGNMENT_LENGTH,MAX_ALIGNMENT_CELLS,deepClone,escapeHtml,safeText,isHexColor,safeColor,csvSafeValue,delimitedCell,likelyNucleicAcid,readFile,cleanSequenceName,cleanTreeLabel,nameVariants,matchTreeName,validateTreeAlignment,parseFasta,parseFastaRaw,formatFasta,parsePdbSequences,detectStructureFormat,parseCifSequences,parseStructureSequences,parseStructureObservedResidues,matchPdbToAlignment,parseNewick,parseParameterCsv,leaves,walkTree,assignTreeCoordinates,drawEdges,htmlTable,propertyNames,saveSession,loadSession,clearSession,validateSessionData,serializeSessionFile,parseSessionFile,downloadText,downloadSvg,downloadPng,fetchWithTimeout,messageTargetOrigin,messageChannel,localPageUrl,postToParent,isTrustedParentMessage};
+  global.A2CA={SESSION_MARKER,SESSION_FILE_MARKER,SESSION_FILE_VERSION,AA_ORDER,DEFAULT_COLORS,DEFAULT_PROPERTIES,MAX_ALIGNMENT_SEQUENCES,MAX_ALIGNMENT_LENGTH,MAX_ALIGNMENT_CELLS,deepClone,escapeHtml,safeText,isHexColor,safeColor,csvSafeValue,delimitedCell,likelyNucleicAcid,readFile,cleanSequenceName,cleanTreeLabel,nameVariants,matchTreeName,validateTreeAlignment,parseFasta,parseFastaRaw,formatFasta,parsePdbSequences,detectStructureFormat,parseCifSequences,parseStructureSequences,parseStructureObservedResidues,matchPdbToAlignment,parseNewick,parseParameterCsv,leaves,walkTree,assignTreeCoordinates,drawEdges,htmlTable,propertyNames,saveSession,loadSession,clearSession,validateSessionData,serializeSessionFile,parseSessionFile,downloadText,downloadSvg,downloadPng,fetchWithTimeout,getAppMeta,getAppVersion,messageTargetOrigin,messageChannel,localPageUrl,postToParent,isTrustedParentMessage,session};
 })(window);

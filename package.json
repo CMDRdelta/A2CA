@@ -1,0 +1,15 @@
+{
+  "name": "a2ca-web",
+  "private": true,
+  "version": "2.0.43",
+  "description": "Development lint tooling for the A2CA hosted web application",
+  "devDependencies": {
+    "eslint": "9.36.0",
+    "playwright": "1.55.0"
+  },
+  "scripts": {
+    "lint": "eslint resources/*.js",
+    "browser-smoke": "node tests/browser_smoke.mjs",
+    "science-test": "node tests/analysis_science.test.mjs"
+  }
+}

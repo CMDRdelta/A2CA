@@ -1,25 +1,10 @@
 'use strict';
 (function(){
   const $=id=>document.getElementById(id);
-  const embedded=window.parent!==window;
   const params=new URLSearchParams(location.search);
   const allowedReturns=new Set(['upload_precomputed.html','upload_fasta.html','reference.html','analysis.html']);
   const returnPage=allowedReturns.has(params.get('return'))?params.get('return'):'analysis.html';
   let currentSession=null;
-
-  function requestSession(){
-    if(!embedded)return Promise.resolve(A2CA.loadSession());
-    return new Promise(resolve=>{
-      let settled=false;
-      const handler=event=>{
-        if(!A2CA.isTrustedParentMessage(event,'A2CA_SESSION'))return;
-        if(settled)return;settled=true;window.removeEventListener('message',handler);resolve(event.data.data||A2CA.loadSession());
-      };
-      window.addEventListener('message',handler);
-      A2CA.postToParent('A2CA_REQUEST_SESSION');
-      setTimeout(()=>{if(settled)return;settled=true;window.removeEventListener('message',handler);resolve(A2CA.loadSession());},500);
-    });
-  }
 
   function configureBackLink(){
     const back=$('treeBackBtn');
@@ -94,5 +79,5 @@
   });
 
   configureBackLink();
-  requestSession().then(render);
+  A2CA.session.request().then(render);
 })();

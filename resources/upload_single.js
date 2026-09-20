@@ -1,7 +1,6 @@
 'use strict';
 (function(){
   const $=id=>document.getElementById(id);
-  const embedded=window.parent!==window;
   const BLAST_ENDPOINT='/api/ncbi/blast';
   const EFETCH_ENDPOINT='/api/ncbi/efetch';
   const TOOL='A2CA';
@@ -16,24 +15,8 @@
   let pollStopRequested=false;
   let stopButtonTimer=null;
 
-  function requestSession(){
-    if(!embedded)return Promise.resolve(A2CA.loadSession());
-    return new Promise(resolve=>{
-      let settled=false;
-      const handler=event=>{
-        if(!A2CA.isTrustedParentMessage(event,'A2CA_SESSION'))return;
-        if(settled)return;
-        settled=true;window.removeEventListener('message',handler);resolve(event.data.data||A2CA.loadSession());
-      };
-      window.addEventListener('message',handler);
-      A2CA.postToParent('A2CA_REQUEST_SESSION');
-      setTimeout(()=>{if(!settled){settled=true;window.removeEventListener('message',handler);resolve(A2CA.loadSession());}},500);
-    });
-  }
-
   function publishSession(data){
-    blastSession=data;A2CA.saveSession(data);
-    if(embedded)A2CA.postToParent('A2CA_SAVE_SESSION',data);
+    blastSession=data;A2CA.session.publish(data);
   }
 
   function emailValid(){const v=$('ncbiEmail').value.trim();return !v||/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);}
@@ -181,8 +164,7 @@
       analysisState:{...(existing.analysisState||{}),...(selectedName?{selectedSequence:selectedName}:{})},
       blastFastaText:'',originalFastaText:'',originalFastaFileName:'',alignmentText:'',treeText:''
     };
-    A2CA.saveSession(draft);
-    if(embedded)A2CA.postToParent('A2CA_SAVE_SESSION',draft);
+    A2CA.session.publish(draft);
   }
 
   function validateQuery(){
@@ -587,7 +569,7 @@
 
   async function restorePageState(){
     const generation=++initGeneration;
-    const data=await requestSession();
+    const data=await A2CA.session.request();
     if(generation!==initGeneration)return;
 
     // Restore only durable input values and fully completed BLAST results. A stale

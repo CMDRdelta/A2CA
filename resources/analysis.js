@@ -16,30 +16,8 @@
     MSE:'M',SEC:'U',PYL:'O',ASX:'B',GLX:'Z',XLE:'J',UNK:'X',HYP:'P'
   };
 
-  const BLOSUM_AA='ARNDCQEGHILKMFPSTWYV';
-  const BLOSUM62_ROWS=[
-    [4,-1,-2,-2,0,-1,-1,0,-2,-1,-1,-1,-1,-2,-1,1,0,-3,-2,0],
-    [-1,5,0,-2,-3,1,0,-2,0,-3,-2,2,-1,-3,-2,-1,-1,-3,-2,-3],
-    [-2,0,6,1,-3,0,0,0,1,-3,-3,0,-2,-3,-2,1,0,-4,-2,-3],
-    [-2,-2,1,6,-3,0,2,-1,-1,-3,-4,-1,-3,-3,-1,0,-1,-4,-3,-3],
-    [0,-3,-3,-3,9,-3,-4,-3,-3,-1,-1,-3,-1,-2,-3,-1,-1,-2,-2,-1],
-    [-1,1,0,0,-3,5,2,-2,0,-3,-2,1,0,-3,-1,0,-1,-2,-1,-2],
-    [-1,0,0,2,-4,2,5,-2,0,-3,-3,1,-2,-3,-1,0,-1,-3,-2,-2],
-    [0,-2,0,-1,-3,-2,-2,6,-2,-4,-4,-2,-3,-3,-2,0,-2,-2,-3,-3],
-    [-2,0,1,-1,-3,0,0,-2,8,-3,-3,-1,-2,-1,-2,-1,-2,-2,2,-3],
-    [-1,-3,-3,-3,-1,-3,-3,-4,-3,4,2,-3,1,0,-3,-2,-1,-3,-1,3],
-    [-1,-2,-3,-4,-1,-2,-3,-4,-3,2,4,-2,2,0,-3,-2,-1,-2,-1,1],
-    [-1,2,0,-1,-3,1,1,-2,-1,-3,-2,5,-1,-3,-1,0,-1,-3,-2,-2],
-    [-1,-1,-2,-3,-1,0,-2,-3,-2,1,2,-1,5,0,-2,-1,-1,-1,-1,1],
-    [-2,-3,-3,-3,-2,-3,-3,-3,-1,0,0,-3,0,6,-4,-2,-2,1,3,-1],
-    [-1,-2,-2,-1,-3,-1,-1,-2,-2,-3,-3,-1,-2,-4,7,-1,-1,-4,-3,-2],
-    [1,-1,1,0,-1,0,0,0,-1,-2,-2,0,-1,-2,-1,4,1,-3,-2,-2],
-    [0,-1,0,-1,-1,-1,-1,-2,-2,-1,-1,-1,-1,-2,-1,1,5,-2,-2,0],
-    [-3,-3,-4,-4,-2,-2,-3,-2,-2,-3,-2,-3,-1,1,-4,-3,-2,11,2,-3],
-    [-2,-2,-2,-3,-2,-1,-2,-3,2,-1,-1,-2,-1,3,-3,-2,-2,2,7,-1],
-    [0,-3,-3,-3,-1,-2,-2,-3,-3,3,1,-2,1,-1,-2,-2,0,-3,-1,4]
-  ];
-  const VALID_AA=new Set(BLOSUM_AA.split(''));
+  const Science=A2CA.AnalysisScience;
+  const {VALID_AA,pearson,spearman,pairFrequency,mixColor}=Science;
   const HEATMAP_AA_ORDER=Array.from('GAVLIMFWYCPSTNQDEKRH');
   const LEGACY_AA_COLORS={G:'#BCC4CA',A:'#773D0B',V:'#EA7B1B',L:'#B35C10',I:'#F2B076',F:'#BBCE70',W:'#8DAE10',Y:'#738218',C:'#FFFF00',M:'#CCCC00',D:'#950024',E:'#D60033',K:'#5286C4',R:'#2F5889',H:'#269693',N:'#7030A0',Q:'#CC0099',S:'#FF265B',T:'#FF6F91',P:'#003560','-':'#FFFFFF',NA:'#FFFFFF',X:'#DDDDDD','?':'#DDDDDD'};
   const DEFAULT_CORRELATION_COLORS={
@@ -52,34 +30,6 @@
     bubbleFill:'Property bubbles',bubbleStroke:'Bubble outline',treeResidueA:'Residue 1 change',
     treeResidueB:'Residue 2 change',treeBoth:'Both residues',treeNeutral:'No inferred change'
   };
-  const blosumScore=(a,b)=>{
-    const i=BLOSUM_AA.indexOf(String(a||'').toUpperCase());
-    const j=BLOSUM_AA.indexOf(String(b||'').toUpperCase());
-    return i>=0&&j>=0?BLOSUM62_ROWS[i][j]:NaN;
-  };
-
-  function requestSession(){
-    if(!embedded)return Promise.resolve(A2CA.loadSession());
-    return new Promise(resolve=>{
-      let settled=false;
-      const handler=event=>{
-        if(!A2CA.isTrustedParentMessage(event,'A2CA_SESSION'))return;
-        if(settled)return;
-        settled=true;
-        window.removeEventListener('message',handler);
-        resolve(event.data.data||A2CA.loadSession());
-      };
-      window.addEventListener('message',handler);
-      A2CA.postToParent('A2CA_REQUEST_SESSION');
-      setTimeout(()=>{
-        if(settled)return;
-        settled=true;
-        window.removeEventListener('message',handler);
-        resolve(A2CA.loadSession());
-      },500);
-    });
-  }
-
   function start(session){
     if(!session||!session.alignmentText||!session.treeText){
       $('missingData').hidden=false;
@@ -169,8 +119,7 @@
         }
       };
       session=data;
-      A2CA.saveSession(data);
-      if(embedded)A2CA.postToParent('A2CA_SAVE_SESSION',data);
+      A2CA.session.publish(data);
     }
 
     function getCurrentPropertyFile(){
@@ -299,43 +248,6 @@
       b.value=String(STATE.correlationPositionB);
     }
 
-    function pearson(xs,ys){
-      const pairs=[];
-      for(let i=0;i<Math.min(xs.length,ys.length);i++)if(Number.isFinite(xs[i])&&Number.isFinite(ys[i]))pairs.push([xs[i],ys[i]]);
-      if(pairs.length<3)return NaN;
-      const mx=pairs.reduce((s,p)=>s+p[0],0)/pairs.length;
-      const my=pairs.reduce((s,p)=>s+p[1],0)/pairs.length;
-      let num=0,dx=0,dy=0;
-      for(const [x,y] of pairs){const a=x-mx,b=y-my;num+=a*b;dx+=a*a;dy+=b*b;}
-      return dx>0&&dy>0?num/Math.sqrt(dx*dy):NaN;
-    }
-
-    function ranks(values){
-      const out=new Array(values.length).fill(NaN);
-      const entries=values.map((v,i)=>({v,i})).filter(x=>Number.isFinite(x.v)).sort((a,b)=>a.v-b.v);
-      for(let i=0;i<entries.length;){
-        let j=i+1;while(j<entries.length&&entries[j].v===entries[i].v)j++;
-        const rank=(i+j-1)/2+1;
-        for(let k=i;k<j;k++)out[entries[k].i]=rank;
-        i=j;
-      }
-      return out;
-    }
-    const spearman=(xs,ys)=>pearson(ranks(xs),ranks(ys));
-
-    function residualize(values,covariate){
-      const idx=[];
-      for(let i=0;i<Math.min(values.length,covariate.length);i++)if(Number.isFinite(values[i])&&Number.isFinite(covariate[i]))idx.push(i);
-      if(idx.length<3)return values.map(()=>NaN);
-      const mx=idx.reduce((s,i)=>s+covariate[i],0)/idx.length;
-      const my=idx.reduce((s,i)=>s+values[i],0)/idx.length;
-      let den=0,num=0;
-      for(const i of idx){const dx=covariate[i]-mx;den+=dx*dx;num+=dx*(values[i]-my);}
-      const slope=den>0?num/den:0;
-      const intercept=my-slope*mx;
-      return values.map((v,i)=>Number.isFinite(v)&&Number.isFinite(covariate[i])?v-(intercept+slope*covariate[i]):NaN);
-    }
-
     function correlationResidueData(){
       const posA=Number(STATE.correlationPositionA),posB=Number(STATE.correlationPositionB);
       if(!posA||!posB||posA===posB)return null;
@@ -351,113 +263,6 @@
     function matchTreeLeaf(sequenceName,leafNodes){
       const matched=A2CA.matchTreeName(sequenceName,leafNodes.map(x=>x.name));
       return matched===null?null:(leafNodes.find(x=>x.name===matched)||null);
-    }
-
-    function buildTreeMetrics(){
-      const root=STATE.tree;
-      const all=A2CA.walkTree(root);
-      const leaves=A2CA.leaves(root);
-      const hasLengths=all.some(n=>Number(n.length)>0);
-      const parent=new Map(),rootDist=new Map([[root,0]]),descCount=new Map();
-      function descend(node){
-        let count=node.children.length?0:1;
-        for(const child of node.children){
-          parent.set(child,node);
-          rootDist.set(child,(rootDist.get(node)||0)+(hasLengths?Math.max(0,Number(child.length)||0):1));
-          count+=descend(child);
-        }
-        descCount.set(node,count);
-        return count;
-      }
-      descend(root);
-      const leafBySequence=new Map();
-      for(const name of Object.keys(STATE.alignment)){
-        const leaf=matchTreeLeaf(name,leaves);
-        if(leaf)leafBySequence.set(name,leaf);
-      }
-      const rawWeights={};
-      for(const [name,leaf] of leafBySequence){
-        let node=leaf,w=0;
-        while(parent.has(node)){
-          const len=hasLengths?Math.max(0,Number(node.length)||0):1;
-          w+=len/Math.max(1,descCount.get(node)||1);
-          node=parent.get(node);
-        }
-        rawWeights[name]=w>0?w:1;
-      }
-      const names=Object.keys(STATE.alignment);
-      const mapped=Object.values(rawWeights);
-      const fallback=mapped.length?mapped.reduce((a,b)=>a+b,0)/mapped.length:1;
-      for(const name of names)if(!Number.isFinite(rawWeights[name]))rawWeights[name]=fallback;
-      const mean=names.length?names.reduce((s,n)=>s+rawWeights[n],0)/names.length:1;
-      const weights={};for(const n of names)weights[n]=rawWeights[n]/(mean||1);
-
-      const ancestorCache=new Map();
-      function ancestors(node){
-        if(ancestorCache.has(node))return ancestorCache.get(node);
-        const set=new Set();let cur=node;while(cur){set.add(cur);cur=parent.get(cur);}
-        ancestorCache.set(node,set);return set;
-      }
-      function distance(nameA,nameB){
-        if(nameA===nameB)return 0;
-        const a=leafBySequence.get(nameA),b=leafBySequence.get(nameB);
-        if(!a||!b)return NaN;
-        const aset=ancestors(a);let cur=b,lca=root;
-        while(cur){if(aset.has(cur)){lca=cur;break;}cur=parent.get(cur);}
-        return (rootDist.get(a)||0)+(rootDist.get(b)||0)-2*(rootDist.get(lca)||0);
-      }
-      return {weights,distance,leafBySequence,hasLengths,parent,descCount};
-    }
-
-    function similarityCorrelation(rows,treeMetrics){
-      const MAX_PAIRWISE_SEQUENCES=1000;
-      let sample=rows;
-      if(rows.length>MAX_PAIRWISE_SEQUENCES){
-        sample=Array.from({length:MAX_PAIRWISE_SEQUENCES},(_,i)=>rows[Math.floor(i*(rows.length-1)/(MAX_PAIRWISE_SEQUENCES-1))]);
-      }
-      const raw={n:0,sx:0,sy:0,sxx:0,syy:0,sxy:0};
-      const adj={n:0,sx:0,sy:0,sd:0,sxx:0,syy:0,sdd:0,sxy:0,sxd:0,syd:0};
-      const add2=(a,x,y)=>{a.n++;a.sx+=x;a.sy+=y;a.sxx+=x*x;a.syy+=y*y;a.sxy+=x*y;};
-      const add3=(a,x,y,d)=>{a.n++;a.sx+=x;a.sy+=y;a.sd+=d;a.sxx+=x*x;a.syy+=y*y;a.sdd+=d*d;a.sxy+=x*y;a.sxd+=x*d;a.syd+=y*d;};
-      for(let i=0;i<sample.length;i++)for(let j=i+1;j<sample.length;j++){
-        const x=blosumScore(sample[i].aaA,sample[j].aaA),y=blosumScore(sample[i].aaB,sample[j].aaB);
-        if(!Number.isFinite(x)||!Number.isFinite(y))continue;add2(raw,x,y);
-        if(treeMetrics){const d=treeMetrics.distance(sample[i].name,sample[j].name);if(Number.isFinite(d))add3(adj,x,y,d);}
-      }
-      const corr=(n,sx,sy,sxx,syy,sxy)=>{if(n<3)return NaN;const vx=sxx-sx*sx/n,vy=syy-sy*sy/n,cov=sxy-sx*sy/n;return vx>0&&vy>0?cov/Math.sqrt(vx*vy):NaN;};
-      const rxy=corr(raw.n,raw.sx,raw.sy,raw.sxx,raw.syy,raw.sxy);
-      let adjusted=NaN;
-      if(adj.n>=3){
-        const rxy2=corr(adj.n,adj.sx,adj.sy,adj.sxx,adj.syy,adj.sxy),rxd=corr(adj.n,adj.sx,adj.sd,adj.sxx,adj.sdd,adj.sxd),ryd=corr(adj.n,adj.sy,adj.sd,adj.syy,adj.sdd,adj.syd);
-        const den=Math.sqrt((1-rxd*rxd)*(1-ryd*ryd));if(Number.isFinite(rxy2)&&Number.isFinite(rxd)&&Number.isFinite(ryd)&&den>0)adjusted=(rxy2-rxd*ryd)/den;
-      }
-      return {raw:rxy,adjusted,pairs:raw.n,adjustedPairs:adj.n,sampled:sample.length<rows.length,sampledSequences:sample.length,totalSequences:rows.length};
-    }
-
-    function pairFrequency(rows,weights=null){
-      const counts=new Map(),rowCounts=new Map(),colCounts=new Map();
-      let total=0;
-      for(const row of rows){
-        const w=weights?Number(weights[row.name]||0):1;
-        if(!(w>0))continue;
-        const key=`${row.aaA}|${row.aaB}`;
-        counts.set(key,(counts.get(key)||0)+w);
-        rowCounts.set(row.aaA,(rowCounts.get(row.aaA)||0)+w);
-        colCounts.set(row.aaB,(colCounts.get(row.aaB)||0)+w);
-        total+=w;
-      }
-      return {counts,rowCounts,colCounts,total};
-    }
-
-    function hexToRgb(hex){
-      const clean=String(hex||'').replace('#','');
-      if(!/^[0-9a-fA-F]{6}$/.test(clean))return [128,128,128];
-      return [parseInt(clean.slice(0,2),16),parseInt(clean.slice(2,4),16),parseInt(clean.slice(4,6),16)];
-    }
-
-    function mixColor(fromHex,toHex,t){
-      const a=hexToRgb(fromHex),b=hexToRgb(toHex),u=clamp(Number(t)||0,0,1);
-      return `rgb(${a.map((x,i)=>Math.round(x+(b[i]-x)*u)).join(',')})`;
     }
 
     function enrichmentColor(value,maxAbs){
@@ -561,50 +366,11 @@
       box.innerHTML=parts.join('');
     }
 
-    function fitchStatesForPosition(pos){
-      const leafNodes=A2CA.leaves(STATE.tree);
-      const seqByLeaf=new Map();
-      for(const leaf of leafNodes){
-        const seqName=A2CA.matchTreeName(leaf.name,Object.keys(STATE.alignment));
-        if(seqName)seqByLeaf.set(leaf,seqName);
-      }
-      const stateSets=new Map();
-      function post(node){
-        if(!node.children.length){
-          const name=seqByLeaf.get(node),aa=name?String(STATE.alignment[name][pos-1]||'').toUpperCase():'';
-          const set=VALID_AA.has(aa)?new Set([aa]):new Set();stateSets.set(node,set);return set;
-        }
-        const childSets=node.children.map(post).filter(s=>s.size);
-        if(!childSets.length){const empty=new Set();stateSets.set(node,empty);return empty;}
-        let current=new Set(childSets[0]);
-        for(const set of childSets.slice(1)){
-          const inter=new Set([...current].filter(x=>set.has(x)));
-          current=inter.size?inter:new Set([...current,...set]);
-        }
-        stateSets.set(node,current);return current;
-      }
-      post(STATE.tree);
-      const assigned=new Map();
-      const refAA=String(STATE.alignment[STATE.selectedSequence]?.[pos-1]||'').toUpperCase();
-      const choose=(set,preferred)=>set.has(preferred)?preferred:([...[...set].sort()][0]||null);
-      assigned.set(STATE.tree,choose(stateSets.get(STATE.tree)||new Set(),refAA));
-      function pre(node){
-        const parentState=assigned.get(node);
-        for(const child of node.children){
-          const set=stateSets.get(child)||new Set();
-          assigned.set(child,choose(set,parentState)||choose(set,refAA));
-          pre(child);
-        }
-      }
-      pre(STATE.tree);
-      return assigned;
-    }
-
     function renderCorrelationChangeTree(posA,posB,labelA,labelB){
       const box=$('correlationChangeTree');
       const leafNodes=A2CA.assignTreeCoordinates(STATE.tree),all=A2CA.walkTree(STATE.tree),n=leafNodes.length;
       if(!n){box.innerHTML='<div class="correlation-plot-empty">Tree data are unavailable.</div>';return;}
-      const statesA=fitchStatesForPosition(posA),statesB=fitchStatesForPosition(posB);
+      const statesA=Science.fitchStatesForPosition(STATE.tree,STATE.alignment,STATE.selectedSequence,posA),statesB=Science.fitchStatesForPosition(STATE.tree,STATE.alignment,STATE.selectedSequence,posB);
       // Keep symmetric horizontal margins. The node connector is drawn for every
       // internal node (including the root), so basal branches are connected rather
       // than looking clipped at the left edge.
@@ -655,8 +421,8 @@
       if(!data){status.className='status bad small correlation-status';status.textContent='Choose two different selected residues.';return;}
       const descA=residues.find(r=>r.alignmentPosition===data.posA),descB=residues.find(r=>r.alignmentPosition===data.posB);
       const labelA=descA?.label||`Position ${data.posA}`,labelB=descB?.label||`Position ${data.posB}`;
-      const treeMetrics=correlationTreeMetricsCache||(correlationTreeMetricsCache=buildTreeMetrics());
-      const scores=similarityCorrelation(data.rows,treeMetrics);
+      const treeMetrics=correlationTreeMetricsCache||(correlationTreeMetricsCache=Science.buildTreeMetrics(STATE.tree,STATE.alignment));
+      const scores=Science.similarityCorrelation(data.rows,treeMetrics);
       status.className='status good small correlation-status';
       status.textContent=`${data.rows.length} ungapped sequences used · ${scores.pairs.toLocaleString()} sequence pairs for similarity correlation${scores.sampled?` (score sampled from ${scores.sampledSequences} sequences for browser safety)`:''} · ${scores.adjustedPairs.toLocaleString()} pairs with tree distances.`;
       $('similarityScoreBadge').textContent=`r = ${Number.isFinite(scores.raw)?scores.raw.toFixed(2):'–'}`;
@@ -1503,7 +1269,7 @@
     }
 
     function treeChangeRawRows(posA,posB,labelA,labelB){
-      const statesA=fitchStatesForPosition(posA),statesB=fitchStatesForPosition(posB),out=[];
+      const statesA=Science.fitchStatesForPosition(STATE.tree,STATE.alignment,STATE.selectedSequence,posA),statesB=Science.fitchStatesForPosition(STATE.tree,STATE.alignment,STATE.selectedSequence,posB),out=[];
       let internal=0;
       const nodeName=node=>node.name||`internal_${++internal}`;
       function rec(node,parentLabel){
@@ -1524,7 +1290,7 @@
       const bundle=correlationLabelsAndData();
       if(!bundle)return [];
       const {data,labelA,labelB}=bundle;
-      const treeMetrics=correlationTreeMetricsCache||(correlationTreeMetricsCache=buildTreeMetrics());
+      const treeMetrics=correlationTreeMetricsCache||(correlationTreeMetricsCache=Science.buildTreeMetrics(STATE.tree,STATE.alignment));
       const lookup={
         similarity:()=>heatmapRawRows(data.rows,null,labelA,labelB,'similarity'),
         parameter:()=>parameterRawRows(data.rows,labelA,labelB),
@@ -1653,10 +1419,10 @@
       const base=`${downloadTimestamp()}_A2CA_${correlationDownloadPrefix()}_coevolution_${correlationTargetName(target)}`;
       A2CA.downloadText(`${base}.${format}`,mime,rowsToDelimited(rows,format));
     };
-    $('saveSessionBtn').onclick=()=>{
+    $('saveSessionBtn').onclick=async()=>{
       persist();
       try{
-        const text=A2CA.serializeSessionFile(session,'2.0.42');
+        const text=A2CA.serializeSessionFile(session,await A2CA.getAppVersion());
         A2CA.downloadText(`${downloadBase('session')}.a2ca`,'application/json;charset=utf-8',text);
         STATE.audit='Session file saved.';
         $('audit').textContent=STATE.audit;
@@ -1679,5 +1445,5 @@
     renderAll();
   }
 
-  requestSession().then(start);
+  A2CA.session.request().then(start);
 })();

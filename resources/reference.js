@@ -1,38 +1,14 @@
 'use strict';
 (function(){
   const $=id=>document.getElementById(id);
-  const embedded=window.parent!==window;
   let session=null;
   let alignment=null;
   let structureChains=null;
   let selectedChain='';
   let sequenceNames=[];
 
-  function requestSession(){
-    if(!embedded)return Promise.resolve(A2CA.loadSession());
-    return new Promise(resolve=>{
-      let settled=false;
-      const handler=event=>{
-        if(!A2CA.isTrustedParentMessage(event,'A2CA_SESSION'))return;
-        if(settled)return;
-        settled=true;
-        window.removeEventListener('message',handler);
-        resolve(event.data.data||A2CA.loadSession());
-      };
-      window.addEventListener('message',handler);
-      A2CA.postToParent('A2CA_REQUEST_SESSION');
-      setTimeout(()=>{
-        if(settled)return;
-        settled=true;
-        window.removeEventListener('message',handler);
-        resolve(A2CA.loadSession());
-      },500);
-    });
-  }
-
   function publish(){
-    A2CA.saveSession(session);
-    if(embedded)A2CA.postToParent('A2CA_SAVE_SESSION',session);
+    A2CA.session.publish(session);
   }
 
   function selectedReference(){
@@ -259,5 +235,5 @@
     });
   }
 
-  requestSession().then(start);
+  A2CA.session.request().then(start);
 })();

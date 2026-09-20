@@ -4,7 +4,7 @@
 
 **A2CA** is a web application for examining amino-acid variation in a phylogenetic and structural context. It combines multiple-sequence alignments, phylogenetic trees, physicochemical amino-acid properties, optional protein structures, and pairwise coevolution analyses in one interactive workflow.
 
-This repository contains the **hosted web edition of A2CA 2.0.42**, prepared for deployment on Railway.
+This repository contains the **hosted web edition of A2CA 2.0.43**, prepared for deployment on Railway.
 
 ## Features
 
@@ -22,14 +22,14 @@ This repository contains the **hosted web edition of A2CA 2.0.42**, prepared for
 
 The hosted edition has two layers:
 
-1. **Browser application** – HTML/CSS/JavaScript under `resources/`. Most analysis, plotting, session handling, FastTree execution, and structure interaction happen in the browser.
-2. **Small Python web server** – `main.py`. It serves A2CA, provides narrowly scoped same-origin proxy endpoints for NCBI BLAST/Protein EFetch and RCSB PDB retrieval, and executes MAFFT locally in the hosted container.
+1. **Browser application** – HTML/CSS/JavaScript under `resources/`. Most analysis, plotting, session handling, and structure interaction happen in the browser. Dedicated JavaScript modules separate reusable services and scientific calculations from page/UI code.
+2. **Small Python web server** – `main.py`. It serves A2CA, provides narrowly scoped same-origin proxy endpoints for NCBI BLAST/Protein EFetch and RCSB PDB retrieval, and executes MAFFT and FastTree locally in the hosted container. It also exposes metadata/status endpoints for deployment diagnostics.
 
 The Python backend uses only the standard library. No user data are intentionally persisted by the server.
 
 ## Deploy on Railway
 
-Railway uses the repository-level [`railway.toml`](railway.toml). It starts A2CA with:
+Railway uses the repository-level [`railway.toml`](railway.toml) together with [`railpack.json`](railpack.json). Railpack installs the MAFFT and FastTree runtime packages, and Railway starts A2CA with:
 
 ```text
 python main.py
@@ -53,7 +53,7 @@ Railway documentation:
 
 ## Local development of the web edition
 
-Python 3.12 is recommended for development. No Python packages are required. MAFFT must also be installed and available on `PATH` for the FASTA workflow.
+Python 3.12 is recommended for development. No Python packages are required. MAFFT and FastTree must be installed and available on `PATH` for the FASTA workflow.
 
 ```bash
 python main.py
@@ -72,7 +72,8 @@ The public website is the intended distribution target for this repository. Desk
 ```text
 A2CA/
 ├── main.py                  # Hosted web server and scientific-service proxy
-├── railway.toml             # Railway deployment configuration
+├── railway.toml             # Railway service/health configuration
+├── railpack.json            # Runtime packages and start command
 ├── .python-version
 ├── README.md
 ├── VERSION
@@ -81,6 +82,7 @@ A2CA/
 ├── CONTRIBUTING.md
 ├── CHANGELOG.md
 ├── requirements.txt         # Documents the zero-dependency Python backend
+├── package.json             # JavaScript lint configuration/development tooling
 ├── resources/
 │   ├── upload.html
 │   ├── upload_single.html
@@ -93,9 +95,14 @@ A2CA/
 │   ├── tree.html
 │   ├── parameters.html
 │   ├── a2ca-core.js
+│   ├── a2ca-services.js
+│   ├── a2ca-analysis-science.js
 │   ├── *.js
 │   ├── styles.css
 │   └── assets/
+├── tests/
+│   ├── analysis_science.test.mjs
+│   └── browser_smoke.mjs
 ├── tools/
 │   └── validate_repo.py
 └── .github/
@@ -108,8 +115,8 @@ A2CA/
 A2CA uses or communicates with:
 
 - **NCBI BLAST Common URL API** and **NCBI Protein EFetch** for homolog discovery and protein-sequence retrieval.
-- **MAFFT** executed directly in the A2CA server container (`mafft --auto`) for multiple-sequence alignment.
-- **FastTree 2.1.11** through BioWasm/Aioli for browser-side phylogenetic inference.
+- **MAFFT** executed directly in the A2CA server container (`mafft --auto --amino --anysymbol`) for multiple-sequence alignment.
+- **FastTree** executed directly in the A2CA server container for phylogenetic inference. The detected runtime version is exposed by `/api/meta` and stored with generated pipeline metadata.
 - **RCSB Protein Data Bank** for structure retrieval by PDB identifier.
 - **3Dmol.js 2.5.5** for interactive WebGL structure visualization.
 
@@ -119,7 +126,7 @@ External services are subject to their own availability, terms, and usage limits
 
 A2CA does not intentionally save uploaded sequences, structures, or `.a2ca` sessions on the web server. Analysis state is maintained in the user's browser and can be exported explicitly by the user.
 
-When the relevant workflow is used, user-provided data can be forwarded to external services, including NCBI, RCSB PDB, and BioWasm-hosted browser components. FASTA sequences sent to the MAFFT workflow are processed inside the A2CA server container rather than forwarded to EMBL-EBI. Deployments intended for public use should provide an appropriate privacy/data-processing notice.
+When the relevant workflow is used, user-provided data can be forwarded to external services, including NCBI and RCSB PDB. FASTA sequences sent to the alignment/tree workflow are processed inside the A2CA server container by MAFFT and FastTree rather than forwarded to a third-party alignment service. Deployments intended for public use should provide an appropriate privacy/data-processing notice.
 
 The public proxy endpoints are parameter-restricted, same-origin protected, size limited, and rate limited. NCBI BLAST requests are additionally serialized conservatively so the hosted service does not contact the remote BLAST endpoint too frequently.
 
@@ -131,7 +138,7 @@ Run the repository checks with:
 python tools/validate_repo.py
 ```
 
-GitHub Actions performs the same static checks and a local web-server smoke test on pushes and pull requests.
+GitHub Actions performs static checks, ESLint undefined-variable checks, unit tests for the extracted scientific JavaScript module, live MAFFT/FastTree endpoint smoke tests, and a Chromium FASTA-workflow smoke test on pushes and pull requests.
 
 ## Citation
 
@@ -143,7 +150,7 @@ A machine-readable citation is provided in [`CITATION.cff`](CITATION.cff).
 
 ## Versioning
 
-The application version is stored in [`VERSION`](VERSION). Git tags for releases should use the form `v2.0.42`.
+The application version is stored in [`VERSION`](VERSION). Git tags for releases should use the form `v2.0.43`.
 
 ## License and reuse
 

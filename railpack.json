@@ -2,7 +2,11 @@
   "$schema": "https://schema.railpack.com",
   "provider": "python",
   "deploy": {
-    "aptPackages": ["...", "mafft"],
+    "aptPackages": [
+      "...",
+      "mafft",
+      "fasttree"
+    ],
     "startCommand": "python main.py",
     "variables": {
       "LANG": "en_US.UTF-8",

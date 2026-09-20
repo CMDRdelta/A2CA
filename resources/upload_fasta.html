@@ -47,7 +47,7 @@
       <ol class="progress-steps">
         <li id="stepInput"><span class="progress-dot"></span><div><b>Input validated</b><small>Check identifiers and protein sequences.</small></div></li>
         <li id="stepMafft"><span class="progress-dot"></span><div><b>MAFFT alignment</b><small>Run MAFFT on the A2CA server.</small></div></li>
-        <li id="stepFasttree"><span class="progress-dot"></span><div><b>FastTree</b><small>Infer the phylogenetic tree in the browser.</small></div></li>
+        <li id="stepFasttree"><span class="progress-dot"></span><div><b>FastTree</b><small>Infer the phylogenetic tree on the A2CA server.</small></div></li>
         <li id="stepReady"><span class="progress-dot"></span><div><b>Ready for analysis</b><small>Validate generated alignment and Newick tree.</small></div></li>
       </ol>
       <div id="pipelineStatus" class="status">Waiting to start.</div>
@@ -64,7 +64,7 @@
   </section>
 </div>
 <script src="a2ca-core.js"></script>
-<script src="https://biowasm.com/cdn/v3/aioli.js" referrerpolicy="no-referrer"></script>
+<script src="a2ca-services.js"></script>
 <script src="upload_fasta.js"></script>
 </body>
 </html>

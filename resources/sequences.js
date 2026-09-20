@@ -1,23 +1,7 @@
 'use strict';
 (function(){
   const $=id=>document.getElementById(id);
-  const embedded=window.parent!==window;
   let currentFasta='';
-
-  function requestSession(){
-    if(!embedded)return Promise.resolve(A2CA.loadSession());
-    return new Promise(resolve=>{
-      let settled=false;
-      const handler=event=>{
-        if(!A2CA.isTrustedParentMessage(event,'A2CA_SESSION'))return;
-        if(settled)return;
-        settled=true;window.removeEventListener('message',handler);resolve(event.data.data||A2CA.loadSession());
-      };
-      window.addEventListener('message',handler);
-      A2CA.postToParent('A2CA_REQUEST_SESSION');
-      setTimeout(()=>{if(!settled){settled=true;window.removeEventListener('message',handler);resolve(A2CA.loadSession());}},500);
-    });
-  }
 
   function render(session){
     currentFasta=String(session?.blastClusterFastaText||session?.blastFastaText||'').trim();
@@ -47,5 +31,5 @@
     A2CA.downloadText('A2CA_NCBI_BLAST_FASTA_cluster.txt','text/plain;charset=utf-8',currentFasta+'\n');
   });
 
-  requestSession().then(render);
+  A2CA.session.request().then(render);
 })();

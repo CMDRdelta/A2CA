@@ -1,15 +1,13 @@
 'use strict';
 (function(){
   const $=id=>document.getElementById(id);
-  const embedded=window.parent!==window;
   let baseSession={};
   let alignmentText='',treeText='',alignment=null,tree=null;
   let alignmentFileName='',treeFileName='';
 
   function publishSession(data){
     baseSession=data;
-    A2CA.saveSession(data);
-    if(embedded)A2CA.postToParent('A2CA_SAVE_SESSION',data);
+    A2CA.session.publish(data);
   }
 
   function currentSession(){
@@ -61,11 +59,8 @@
     }catch(e){/* leave empty */}
   }
 
-  window.addEventListener('message',event=>{
-    if(!A2CA.isTrustedParentMessage(event,'A2CA_SESSION'))return;
-    if(event.data.data)restoreSession(event.data.data);
-  });
-  if(embedded)A2CA.postToParent('A2CA_REQUEST_SESSION'); else restoreSession(A2CA.loadSession());
+  A2CA.session.request().then(restoreSession);
+
 
   $('alnFile').addEventListener('change',async()=>{
     try{

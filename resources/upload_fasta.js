@@ -1,7 +1,6 @@
 'use strict';
 (function(){
   const $=id=>document.getElementById(id);
-  const embedded=window.parent!==window;
   let validRecords=null;
   let pipelineComplete=false;
   let finalSession=null;
@@ -24,21 +23,6 @@
   function configureContinueButton(data){
     if(!$('continueBtn'))return;
     $('continueBtn').textContent=continueTarget(data)==='analysis.html'?'Continue to analysis':'Continue to reference selection';
-  }
-
-  function requestSession(){
-    if(!embedded)return Promise.resolve(A2CA.loadSession());
-    return new Promise(resolve=>{
-      let settled=false;
-      const handler=event=>{
-        if(!A2CA.isTrustedParentMessage(event,'A2CA_SESSION'))return;
-        if(settled)return;
-        settled=true;window.removeEventListener('message',handler);resolve(event.data.data||A2CA.loadSession());
-      };
-      window.addEventListener('message',handler);
-      A2CA.postToParent('A2CA_REQUEST_SESSION');
-      setTimeout(()=>{if(!settled){settled=true;window.removeEventListener('message',handler);resolve(A2CA.loadSession());}},500);
-    });
   }
 
   function restoreCompletedSession(data){
@@ -80,8 +64,7 @@
 
   function publishSession(data){
     finalSession=data;
-    A2CA.saveSession(data);
-    if(embedded)A2CA.postToParent('A2CA_SAVE_SESSION',data);
+    A2CA.session.publish(data);
   }
 
   function setProgress(pct,text){
@@ -116,9 +99,11 @@
       const parsed=A2CA.parseFastaRaw(text);
       const names=Object.keys(parsed);
       if(names.length<3)throw new Error('MAFFT requires at least three sequences for this multiple-sequence alignment workflow.');
-      if(names.length>500)throw new Error('The EMBL-EBI MAFFT service accepts at most 500 sequences per job.');
+      if(names.length>500)throw new Error('A2CA accepts at most 500 sequences for server-side alignment.');
+      const unsafeName=names.find(name=>/[(),:;\[\]'"]/u.test(name));
+      if(unsafeName)throw new Error(`FASTA identifier ${unsafeName} contains punctuation reserved by Newick. Rename it before tree inference.`);
       const formatted=A2CA.formatFasta(parsed);
-      if(new Blob([formatted]).size>1024*1024)throw new Error('The EMBL-EBI MAFFT service accepts at most 1 MB of sequence input per job.');
+      if(new Blob([formatted]).size>1024*1024)throw new Error('A2CA accepts at most 1 MB of FASTA input for server-side alignment.');
       validRecords=parsed;
       const lens=names.map(n=>parsed[n].length);
       $('sequenceValidation').className='status good';
@@ -139,44 +124,6 @@
   });
   $('fastaText').addEventListener('input',validateInput);
 
-  async function fetchText(url,options,timeoutMs=90000){
-    const res=await A2CA.fetchWithTimeout(url,{cache:'no-store',...(options||{})},timeoutMs);
-    const text=await res.text();
-    if(!res.ok)throw new Error(text.replace(/<[^>]+>/g,' ').replace(/\s+/g,' ').trim()||`HTTP ${res.status}`);
-    return text.trim();
-  }
-
-  async function runMafft(fasta){
-    const res=await A2CA.fetchWithTimeout('/api/mafft',{
-      method:'POST',
-      headers:{'Content-Type':'text/plain;charset=UTF-8','X-A2CA-Request':'web'},
-      body:fasta,
-      cache:'no-store'
-    },330000);
-    const text=await res.text();
-    if(!res.ok)throw new Error(text.trim()||`MAFFT server returned HTTP ${res.status}`);
-    if(!looksLikeAlignedFasta(text))throw new Error('The A2CA MAFFT server did not return a valid FASTA alignment.');
-    return {alignmentText:text.trim()+'\n',resultType:'server-mafft-auto',resultTypes:['server-mafft-auto'],jobId:null};
-  }
-
-  async function runFastTree(alignmentText){
-    if(typeof Aioli==='undefined')throw new Error('FastTree WebAssembly could not be loaded. Check the internet connection and reload the page.');
-    const CLI=await new Aioli(['fasttree/2.1.11'],{printInterleaved:false});
-    try{
-      await CLI.mount([{name:'a2ca_alignment.fasta',data:alignmentText}]);
-      const result=await CLI.exec('fasttree -quiet a2ca_alignment.fasta');
-      const stdout=typeof result==='string'?result:(result?.stdout||'');
-      const tree=String(stdout).trim();
-      if(!tree.includes('(')||!tree.endsWith(';')){
-        const stderr=typeof result==='object'?(result?.stderr||''):'';
-        throw new Error(`FastTree did not return a valid Newick tree.${stderr?` ${String(stderr).trim().slice(0,400)}`:''}`);
-      }
-      return tree+'\n';
-    }finally{
-      try{if(CLI.close)await CLI.close();}catch(e){}
-    }
-  }
-
   $('runPipelineBtn').onclick=async()=>{
     validateInput();
     if(!validRecords||running)return;
@@ -184,11 +131,12 @@
     const fasta=A2CA.formatFasta(validRecords);
     try{
       stepState('stepInput','done');stepState('stepMafft','active');setProgress(18,'Running MAFFT on the A2CA server…');
-      const mafft=await runMafft(fasta);
-      const alignment=A2CA.parseFasta(mafft.alignmentText);
-      stepState('stepMafft','done');stepState('stepFasttree','active');setProgress(64,`MAFFT complete (${Object.keys(alignment).length} sequences). Initializing FastTree…`);
-      const treeText=await runFastTree(mafft.alignmentText);
-      const tree=A2CA.parseNewick(treeText);
+      const mafft=await A2CA.services.runMafft(validRecords);
+      const alignment=mafft.alignment;
+      stepState('stepMafft','done');stepState('stepFasttree','active');setProgress(64,`MAFFT complete (${Object.keys(alignment).length} sequences). Running FastTree on the A2CA server…`);
+      const fasttree=await A2CA.services.runFastTree(mafft.alignmentText);
+      const treeText=fasttree.treeText;
+      const tree=fasttree.tree;
       A2CA.validateTreeAlignment(alignment,tree);
       stepState('stepFasttree','done');stepState('stepReady','active');setProgress(92,'Validating generated analysis files…');
       const leafCount=A2CA.leaves(tree).length;
@@ -209,7 +157,11 @@
         treeFileName:'FastTree tree (generated)',
         originalFastaText:fasta,
         originalFastaFileName:isBlast?(upstreamSession.originalFastaFileName||'NCBI BLAST homologs'):($('fastaFile').files[0]?.name||'pasted sequences'),
-        pipelineMeta:{mafftJobId:mafft.jobId,mafftResultType:mafft.resultType,mafftResultTypes:mafft.resultTypes,treeMethod:'FastTree 2.1.11',...(isBlast?{blastRid:upstreamSession.blastMeta?.rid||null}: {})},
+        pipelineMeta:{
+          mafftResultType:mafft.resultType,mafftVersion:mafft.toolVersion,mafftArguments:mafft.arguments,
+          treeResultType:fasttree.resultType,fasttreeVersion:fasttree.toolVersion,fasttreeArguments:fasttree.arguments,treeMethod:'FastTree (server)',
+          ...(isBlast?{blastRid:upstreamSession.blastMeta?.rid||null}: {})
+        },
         blastFastaText:isBlast?upstreamSession.blastFastaText:undefined,
         blastEmail:isBlast?upstreamSession.blastEmail:undefined,
         blastQuery:isBlast?upstreamSession.blastQuery:undefined,
@@ -247,7 +199,7 @@
   // upstream session so structure-started BLAST workflows show the correct target
   // before the asynchronous parent-session handshake completes.
   configureContinueButton(A2CA.loadSession());
-  requestSession().then(data=>{
+  A2CA.session.request().then(data=>{
     upstreamSession=data&&data.inputWorkflow==='blast'?data:null;
     configureContinueButton(data);
     if(restoreCompletedSession(data)){

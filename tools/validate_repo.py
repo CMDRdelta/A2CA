@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from html.parser import HTMLParser
 from pathlib import Path
+import json
 import re
 import subprocess
 import sys
@@ -85,14 +86,35 @@ def check_css(errors: list[str]) -> None:
 
 def check_version(errors: list[str]) -> None:
     version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
-    upload = (RES / "upload.html").read_text(encoding="utf-8")
+    if not re.fullmatch(r"\d+\.\d+\.\d+", version):
+        errors.append(f"VERSION is not semantic x.y.z: {version!r}")
+    main_py = (ROOT / "main.py").read_text(encoding="utf-8")
+    core = (RES / "a2ca-core.js").read_text(encoding="utf-8")
     analysis = (RES / "analysis.js").read_text(encoding="utf-8")
-    if f"version {version}" not in upload.lower():
-        errors.append(f"resources/upload.html does not display VERSION {version}")
-    if f"Version {version}" not in upload:
-        errors.append(f"resources/upload.html footer does not contain VERSION {version}")
-    if f"serializeSessionFile(session,'{version}')" not in analysis:
-        errors.append(f"resources/analysis.js session serializer is not VERSION {version}")
+    upload = (RES / "upload.html").read_text(encoding="utf-8")
+    if 'APP_VERSION = (ROOT / "VERSION").read_text' not in main_py:
+        errors.append("main.py does not use VERSION as the canonical application version")
+    if 'data-a2ca-version' not in upload or 'getAppMeta' not in core:
+        errors.append("browser version labels are not hydrated from /api/meta")
+    if "await A2CA.getAppVersion()" not in analysis:
+        errors.append("analysis session export does not use the canonical server version")
+    try:
+        package_version = json.loads((ROOT / "package.json").read_text(encoding="utf-8")).get("version")
+    except (OSError, json.JSONDecodeError):
+        package_version = None
+    if package_version != version:
+        errors.append(f"package.json version {package_version!r} does not match VERSION {version}")
+    citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
+    if f"version: {version}" not in citation:
+        errors.append("CITATION.cff version does not match VERSION")
+    for file in ROOT.rglob("*"):
+        if not file.is_file() or file.name in {"CHANGELOG.md", "validate_repo.py"}:
+            continue
+        if file.suffix.lower() not in {".py", ".js", ".html", ".css", ".md", ".json", ".toml", ".cff"}:
+            continue
+        text = file.read_text(encoding="utf-8", errors="ignore")
+        if "2.0.42" in text:
+            errors.append(f"stale application version 2.0.42 in {file.relative_to(ROOT)}")
 
 
 def check_generated_files(errors: list[str]) -> None:
@@ -140,11 +162,35 @@ def check_deployment(errors: list[str]) -> None:
             errors.append("railway.toml does not configure /health")
     railpack = ROOT / "railpack.json"
     if not railpack.exists():
-        errors.append("railpack.json is missing (required to install MAFFT on Railway)")
+        errors.append("railpack.json is missing")
     else:
-        rp = railpack.read_text(encoding="utf-8")
-        if '"mafft"' not in rp:
-            errors.append("railpack.json does not install the MAFFT runtime package")
+        try:
+            config = json.loads(railpack.read_text(encoding="utf-8"))
+        except json.JSONDecodeError as exc:
+            errors.append(f"railpack.json is invalid JSON: {exc}")
+        else:
+            packages = config.get("deploy", {}).get("aptPackages", [])
+            if not isinstance(packages, list):
+                errors.append("railpack deploy.aptPackages must be a list")
+            else:
+                for package in ("mafft", "fasttree"):
+                    if package not in packages:
+                        errors.append(f"railpack.json does not install the {package} runtime package")
+                if "..." not in packages:
+                    errors.append("railpack deploy.aptPackages should extend generated packages with '...'")
+            if config.get("deploy", {}).get("startCommand") != "python main.py":
+                errors.append("railpack.json does not start python main.py")
+    upload_fasta = (RES / "upload_fasta.html").read_text(encoding="utf-8")
+    upload_fasta_js = (RES / "upload_fasta.js").read_text(encoding="utf-8")
+    if "biowasm" in upload_fasta.lower() or "Aioli" in upload_fasta_js:
+        errors.append("browser-side FastTree/BioWasm dependency is still present")
+    if "looksLikeAlignedFasta" in upload_fasta_js:
+        errors.append("obsolete undefined looksLikeAlignedFasta helper is still referenced")
+    if "a2ca-services.js" not in upload_fasta:
+        errors.append("FASTA workflow does not load a2ca-services.js")
+    analysis_html = (RES / "analysis.html").read_text(encoding="utf-8")
+    if "a2ca-analysis-science.js" not in analysis_html:
+        errors.append("analysis page does not load a2ca-analysis-science.js")
     obsolete = [
         ROOT / "run_A2CA_offline.html",
         ROOT / "run_A2CA_online_Windows.bat",

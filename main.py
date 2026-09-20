@@ -12,6 +12,7 @@ down when a user closes a tab.
 
 from __future__ import annotations
 
+import json
 import os
 import re
 import shutil
@@ -28,11 +29,12 @@ from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
+APP_VERSION = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
 HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8000"))
-MAX_REQUEST_BODY = 2 * 1024 * 1024
+MAX_REQUEST_BODY = 25 * 1024 * 1024
 MAX_REMOTE_RESPONSE = 25 * 1024 * 1024
-USER_AGENT = "A2CA/2.0.42 (Amino Acid Cluster Analysis; hosted web application)"
+USER_AGENT = f"A2CA/{APP_VERSION} (Amino Acid Cluster Analysis; hosted web application)"
 API_HEADER = "X-A2CA-Request"
 API_HEADER_VALUE = "web"
 
@@ -41,11 +43,18 @@ NCBI_TARGETS = {
     "/api/ncbi/efetch": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
 }
 RCSB_PDB_ENDPOINT = "/api/rcsb/pdb"
+META_ENDPOINT = "/api/meta"
+STATUS_ENDPOINT = "/api/status"
 MAFFT_ENDPOINT = "/api/mafft"
+FASTTREE_ENDPOINT = "/api/fasttree"
 MAX_MAFFT_INPUT = 1 * 1024 * 1024
+MAX_FASTTREE_INPUT = 25 * 1024 * 1024
 MAFFT_TIMEOUT_SECONDS = int(os.environ.get("A2CA_MAFFT_TIMEOUT", "300"))
-MAFFT_CONCURRENCY = max(1, int(os.environ.get("A2CA_MAFFT_CONCURRENCY", "1")))
-MAFFT_GATE = threading.BoundedSemaphore(MAFFT_CONCURRENCY)
+FASTTREE_TIMEOUT_SECONDS = int(os.environ.get("A2CA_FASTTREE_TIMEOUT", "180"))
+MAFFT_THREADS = max(1, min(4, int(os.environ.get("A2CA_MAFFT_THREADS", "1"))))
+COMPUTE_CONCURRENCY = max(1, int(os.environ.get("A2CA_COMPUTE_CONCURRENCY", os.environ.get("A2CA_MAFFT_CONCURRENCY", "1"))))
+COMPUTE_QUEUE_SECONDS = max(0, int(os.environ.get("A2CA_COMPUTE_QUEUE_SECONDS", "30")))
+COMPUTE_GATE = threading.BoundedSemaphore(COMPUTE_CONCURRENCY)
 
 BLAST_ALLOWED_PARAMS = {
     "CMD", "PROGRAM", "DATABASE", "QUERY", "EXPECT", "HITLIST_SIZE", "GAPCOSTS",
@@ -101,13 +110,57 @@ def read_limited(response, limit: int = MAX_REMOTE_RESPONSE) -> bytes:
     return payload
 
 
+def _tool_version(path: str | None, args: list[str]) -> str:
+    if not path:
+        return ""
+    try:
+        proc = subprocess.run(
+            [path, *args],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=5,
+            check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return ""
+    text = (proc.stdout + b"\n" + proc.stderr).decode("utf-8", "replace")
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return lines[0][:160] if lines else ""
+
+
+def detect_runtime_tools() -> dict[str, dict[str, str | bool]]:
+    mafft_path = shutil.which("mafft")
+    fasttree_path = shutil.which("fasttree") or shutil.which("FastTree")
+    mafft_version = _tool_version(mafft_path, ["--version"])
+    fasttree_version = _tool_version(fasttree_path, ["-help"])
+    # ``available`` means more than "a file with this name is on PATH": each
+    # executable must also start successfully and emit its normal version/help
+    # banner.  This turns /health into a deployment-runtime check rather than a
+    # shallow PATH check.
+    return {
+        "mafft": {
+            "available": bool(mafft_path and mafft_version),
+            "path": mafft_path or "",
+            "version": mafft_version,
+        },
+        "fasttree": {
+            "available": bool(fasttree_path and fasttree_version),
+            "path": fasttree_path or "",
+            "version": fasttree_version,
+        },
+    }
+
+
+RUNTIME_TOOLS = detect_runtime_tools()
+
+
 class A2CAServer(ThreadingHTTPServer):
     daemon_threads = True
     allow_reuse_address = True
 
 
 class A2CAHandler(SimpleHTTPRequestHandler):
-    server_version = "A2CA-Web/2.0.42"
+    server_version = f"A2CA-Web/{APP_VERSION}"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -169,10 +222,20 @@ class A2CAHandler(SimpleHTTPRequestHandler):
             return False
         return True
 
-    def _plain_error(self, status: int | HTTPStatus, message: str) -> None:
+    def _plain_error(self, status: int | HTTPStatus, message: str, extra_headers: dict[str, str] | None = None) -> None:
         payload = (str(message).strip() + "\n").encode("utf-8", "replace")
         self.send_response(int(status))
         self.send_header("Content-Type", "text/plain; charset=utf-8")
+        self.send_header("Content-Length", str(len(payload)))
+        for key, value in (extra_headers or {}).items():
+            self.send_header(key, value)
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def _send_json(self, status: int | HTTPStatus, data: object) -> None:
+        payload = (json.dumps(data, separators=(",", ":"), ensure_ascii=False) + "\n").encode("utf-8")
+        self.send_response(int(status))
+        self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(payload)))
         self.end_headers()
         self.wfile.write(payload)
@@ -340,15 +403,56 @@ class A2CAHandler(SimpleHTTPRequestHandler):
             status = HTTPStatus.BAD_GATEWAY
         self._send_text(int(status), payload)
 
-    def _run_mafft(self, body: bytes) -> None:
-        """Run MAFFT locally in the Railway container and return aligned FASTA.
+    @staticmethod
+    def _parse_fasta_records(text: str, *, require_aligned: bool = False) -> dict[str, str]:
+        records: dict[str, str] = {}
+        current = ""
+        for raw in text.splitlines():
+            line = raw.strip()
+            if not line:
+                continue
+            if line.startswith(">"):
+                header = line[1:].strip()
+                if not header:
+                    raise ValueError("A FASTA header is empty")
+                current = header.split()[0]
+                if current in records:
+                    raise ValueError(f"Duplicate FASTA identifier: {current}")
+                if re.search(r"[(),:;\[\]'\"]", current):
+                    raise ValueError(f"FASTA identifier {current!r} contains characters reserved by Newick")
+                records[current] = ""
+                continue
+            if not current:
+                raise ValueError("Sequence data were found before the first FASTA header")
+            sequence = re.sub(r"\s+", "", line).upper().replace(".", "-")
+            if not re.fullmatch(r"[A-Z*?\-]+", sequence):
+                raise ValueError(f"Sequence {current} contains unsupported characters")
+            records[current] += sequence
+        if not records:
+            raise ValueError("No FASTA records were found")
+        if any(not sequence for sequence in records.values()):
+            raise ValueError("One or more FASTA sequences are empty")
+        if require_aligned and len({len(sequence) for sequence in records.values()}) != 1:
+            raise ValueError("FastTree input sequences must have equal aligned lengths")
+        return records
 
-        The browser already validates the FASTA in detail.  The server repeats the
-        important safety checks because this endpoint is reachable independently.
-        MAFFT is invoked without a shell and with a fixed argument list.
-        """
-        if not body or len(body) > MAX_MAFFT_INPUT:
-            self._plain_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "MAFFT input is empty or exceeds the 1 MB safety limit")
+    def _acquire_compute_slot(self, service: str) -> bool:
+        acquired = COMPUTE_GATE.acquire(timeout=COMPUTE_QUEUE_SECONDS)
+        if not acquired:
+            self._plain_error(
+                HTTPStatus.TOO_MANY_REQUESTS,
+                f"The A2CA {service} worker is busy; retry shortly.",
+                {"Retry-After": "10"},
+            )
+        return acquired
+
+    def _run_mafft(self, body: bytes) -> None:
+        """Run MAFFT locally and return a validated protein alignment."""
+        if not body:
+            self._plain_error(HTTPStatus.BAD_REQUEST, "MAFFT input is empty")
+            return
+        if len(body) > MAX_MAFFT_INPUT:
+            self._plain_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "MAFFT input exceeds the 1 MB safety limit")
             return
         try:
             fasta = body.decode("utf-8", "strict")
@@ -356,25 +460,29 @@ class A2CAHandler(SimpleHTTPRequestHandler):
             self._plain_error(HTTPStatus.BAD_REQUEST, "MAFFT input must be UTF-8 FASTA text")
             return
 
-        headers = [line for line in fasta.splitlines() if line.startswith(">")]
-        if not (3 <= len(headers) <= 500):
-            self._plain_error(HTTPStatus.BAD_REQUEST, "MAFFT requires 3-500 FASTA sequences")
-            return
         if "\x00" in fasta or any(ord(ch) < 9 for ch in fasta):
             self._plain_error(HTTPStatus.BAD_REQUEST, "MAFFT input contains unsupported control characters")
+            return
+        try:
+            records = self._parse_fasta_records(fasta)
+        except ValueError as exc:
+            self._plain_error(HTTPStatus.BAD_REQUEST, f"Invalid MAFFT FASTA input: {exc}")
+            return
+        headers = list(records)
+        if not (3 <= len(headers) <= 500):
+            self._plain_error(HTTPStatus.BAD_REQUEST, "MAFFT requires 3-500 FASTA sequences")
             return
 
         client = self._client_ip()
         if not RATE_LIMITER.allow(client, "mafft", 12, 3600.0):
-            self._plain_error(HTTPStatus.TOO_MANY_REQUESTS, "MAFFT submission limit reached for this client; retry later")
+            self._plain_error(HTTPStatus.TOO_MANY_REQUESTS, "MAFFT submission limit reached for this client; retry later", {"Retry-After": "60"})
             return
 
-        mafft = shutil.which("mafft")
+        mafft = str(RUNTIME_TOOLS["mafft"].get("path") or "")
         if not mafft:
             self._plain_error(HTTPStatus.SERVICE_UNAVAILABLE, "MAFFT is not installed in the A2CA server runtime")
             return
-        if not MAFFT_GATE.acquire(blocking=False):
-            self._plain_error(HTTPStatus.SERVICE_UNAVAILABLE, "The A2CA MAFFT worker is currently busy; retry in a moment")
+        if not self._acquire_compute_slot("MAFFT"):
             return
 
         try:
@@ -383,7 +491,16 @@ class A2CAHandler(SimpleHTTPRequestHandler):
                 input_path.write_text(fasta if fasta.endswith("\n") else fasta + "\n", encoding="utf-8")
                 try:
                     proc = subprocess.run(
-                        [mafft, "--auto", "--quiet", "--thread", "1", str(input_path)],
+                        [
+                            mafft,
+                            "--auto",
+                            "--amino",
+                            "--anysymbol",
+                            "--quiet",
+                            "--thread",
+                            str(MAFFT_THREADS),
+                            str(input_path),
+                        ],
                         stdout=subprocess.PIPE,
                         stderr=subprocess.PIPE,
                         timeout=MAFFT_TIMEOUT_SECONDS,
@@ -401,21 +518,87 @@ class A2CAHandler(SimpleHTTPRequestHandler):
             if not output.startswith(b">") or len(output) > MAX_REMOTE_RESPONSE:
                 self._plain_error(HTTPStatus.BAD_GATEWAY, "MAFFT did not return a valid FASTA alignment")
                 return
+            try:
+                out_records = self._parse_fasta_records(output.decode("utf-8", "replace"), require_aligned=True)
+            except ValueError as exc:
+                self._plain_error(HTTPStatus.BAD_GATEWAY, f"MAFFT returned an invalid alignment: {exc}")
+                return
+            out_headers = list(out_records)
+            if len(out_headers) != len(headers) or set(out_headers) != set(headers):
+                self._plain_error(HTTPStatus.BAD_GATEWAY, "MAFFT output identifiers do not match the submitted sequences")
+                return
             self._send_text(HTTPStatus.OK, output)
         finally:
-            MAFFT_GATE.release()
+            COMPUTE_GATE.release()
+
+    def _run_fasttree(self, body: bytes) -> None:
+        """Infer a protein phylogeny from an aligned FASTA file using FastTree."""
+        if not body:
+            self._plain_error(HTTPStatus.BAD_REQUEST, "FastTree input is empty")
+            return
+        if len(body) > MAX_FASTTREE_INPUT:
+            self._plain_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "FastTree alignment exceeds the 25 MB safety limit")
+            return
+        try:
+            alignment = body.decode("utf-8", "strict")
+        except UnicodeDecodeError:
+            self._plain_error(HTTPStatus.BAD_REQUEST, "FastTree input must be UTF-8 FASTA text")
+            return
+        try:
+            records = self._parse_fasta_records(alignment, require_aligned=True)
+        except ValueError as exc:
+            self._plain_error(HTTPStatus.BAD_REQUEST, f"Invalid FastTree FASTA input: {exc}")
+            return
+        headers = list(records)
+        if len(headers) < 3:
+            self._plain_error(HTTPStatus.BAD_REQUEST, "FastTree requires at least three aligned FASTA sequences")
+            return
+
+        client = self._client_ip()
+        if not RATE_LIMITER.allow(client, "fasttree", 18, 3600.0):
+            self._plain_error(HTTPStatus.TOO_MANY_REQUESTS, "FastTree submission limit reached for this client; retry later", {"Retry-After": "60"})
+            return
+
+        fasttree = str(RUNTIME_TOOLS["fasttree"].get("path") or "")
+        if not fasttree:
+            self._plain_error(HTTPStatus.SERVICE_UNAVAILABLE, "FastTree is not installed in the A2CA server runtime")
+            return
+        if not self._acquire_compute_slot("FastTree"):
+            return
+        try:
+            with tempfile.TemporaryDirectory(prefix="a2ca-fasttree-") as tmpdir:
+                input_path = Path(tmpdir) / "alignment.fasta"
+                input_path.write_text(alignment if alignment.endswith("\n") else alignment + "\n", encoding="utf-8")
+                try:
+                    proc = subprocess.run(
+                        [fasttree, "-quiet", str(input_path)],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        timeout=FASTTREE_TIMEOUT_SECONDS,
+                        check=False,
+                    )
+                except subprocess.TimeoutExpired:
+                    self._plain_error(HTTPStatus.GATEWAY_TIMEOUT, f"FastTree exceeded the {FASTTREE_TIMEOUT_SECONDS} s server timeout")
+                    return
+            if proc.returncode != 0:
+                diagnostic = proc.stderr.decode("utf-8", "replace").strip()[:1500]
+                self._plain_error(HTTPStatus.BAD_GATEWAY, "FastTree failed" + (f": {diagnostic}" if diagnostic else ""))
+                return
+            tree = proc.stdout.decode("utf-8", "replace").strip()
+            if not tree.startswith("(") or not tree.endswith(";") or len(tree) > MAX_REMOTE_RESPONSE:
+                self._plain_error(HTTPStatus.BAD_GATEWAY, "FastTree did not return a valid Newick tree")
+                return
+            self._send_text(HTTPStatus.OK, (tree + "\n").encode("utf-8"))
+        finally:
+            COMPUTE_GATE.release()
 
     def do_GET(self):
         parsed = urllib.parse.urlsplit(self.path)
 
         if parsed.path == "/health":
-            mafft_path = shutil.which("mafft")
-            if mafft_path:
-                payload = b"ok\n"
-                status = HTTPStatus.OK
-            else:
-                payload = b"mafft-missing\n"
-                status = HTTPStatus.SERVICE_UNAVAILABLE
+            missing = [name for name, info in RUNTIME_TOOLS.items() if not info.get("available")]
+            payload = ("ok\n" if not missing else "missing:" + ",".join(missing) + "\n").encode("utf-8")
+            status = HTTPStatus.OK if not missing else HTTPStatus.SERVICE_UNAVAILABLE
             self.send_response(status)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))
@@ -432,6 +615,25 @@ class A2CAHandler(SimpleHTTPRequestHandler):
 
         if parsed.path.startswith("/api/"):
             if not self._api_request_allowed():
+                return
+            if parsed.path == META_ENDPOINT:
+                self._send_json(HTTPStatus.OK, {
+                    "version": APP_VERSION,
+                    "sessionFileVersion": 1,
+                    "tools": {
+                        name: {"available": bool(info.get("available")), "version": str(info.get("version") or "")}
+                        for name, info in RUNTIME_TOOLS.items()
+                    },
+                })
+                return
+            if parsed.path == STATUS_ENDPOINT:
+                self._send_json(HTTPStatus.OK, {
+                    "status": "ok" if all(info.get("available") for info in RUNTIME_TOOLS.values()) else "degraded",
+                    "version": APP_VERSION,
+                    "computeConcurrency": COMPUTE_CONCURRENCY,
+                    "mafftThreads": MAFFT_THREADS,
+                    "tools": RUNTIME_TOOLS,
+                })
                 return
             if parsed.path in NCBI_TARGETS:
                 self._proxy_ncbi(parsed.path, parsed.query, body=None)
@@ -457,7 +659,7 @@ class A2CAHandler(SimpleHTTPRequestHandler):
             return
         if not self._api_request_allowed():
             return
-        if parsed.path not in NCBI_TARGETS and parsed.path != MAFFT_ENDPOINT:
+        if parsed.path not in NCBI_TARGETS and parsed.path not in {MAFFT_ENDPOINT, FASTTREE_ENDPOINT}:
             self._plain_error(HTTPStatus.METHOD_NOT_ALLOWED, "POST is only supported for A2CA scientific-service endpoints")
             return
 
@@ -473,6 +675,8 @@ class A2CAHandler(SimpleHTTPRequestHandler):
         body = self.rfile.read(length) if length else b""
         if parsed.path == MAFFT_ENDPOINT:
             self._run_mafft(body)
+        elif parsed.path == FASTTREE_ENDPOINT:
+            self._run_fasttree(body)
         else:
             self._proxy_ncbi(parsed.path, parsed.query, body=body)
 
@@ -483,7 +687,14 @@ class A2CAHandler(SimpleHTTPRequestHandler):
 
 def main() -> int:
     server = A2CAServer((HOST, PORT), A2CAHandler)
-    print(f"A2CA web server listening on {HOST}:{PORT}; MAFFT={shutil.which('mafft') or 'missing'}", flush=True)
+    mafft = RUNTIME_TOOLS["mafft"]
+    fasttree = RUNTIME_TOOLS["fasttree"]
+    print(
+        f"A2CA {APP_VERSION} listening on {HOST}:{PORT}; "
+        f"MAFFT={mafft.get('path') or 'missing'} [{mafft.get('version') or 'version unknown'}]; "
+        f"FastTree={fasttree.get('path') or 'missing'} [{fasttree.get('version') or 'version unknown'}]",
+        flush=True,
+    )
     try:
         server.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:

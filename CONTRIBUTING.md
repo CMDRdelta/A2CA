@@ -7,9 +7,11 @@ A2CA is an open-beta scientific web application. Contributions should preserve r
 1. Create a branch from the current default branch.
 2. Make focused changes.
 3. Run `python tools/validate_repo.py`.
-4. Start the web edition with `python main.py` and exercise the affected workflow in a browser.
-5. Do not commit user `.a2ca` sessions, unpublished sequence data, temporary BLAST results, credentials, or cache files.
-6. Open a pull request describing the scientific and user-interface impact of the change.
+4. Run `npm install` once and then `npm run lint` for JavaScript changes.
+5. Ensure MAFFT and FastTree are available on `PATH`, start the web edition with `python main.py`, and exercise the affected workflow in a browser.
+6. For FASTA-pipeline changes, verify both `/api/mafft` and `/api/fasttree` with representative protein sequences.
+7. Do not commit user `.a2ca` sessions, unpublished sequence data, temporary BLAST results, credentials, or cache files.
+8. Open a pull request describing the scientific and user-interface impact of the change.
 
 ## Coding notes
 
