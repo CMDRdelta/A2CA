@@ -4,7 +4,7 @@
 
 **A2CA** is a web application for examining amino-acid variation in a phylogenetic and structural context. It combines multiple-sequence alignments, phylogenetic trees, physicochemical amino-acid properties, optional protein structures, and pairwise coevolution analyses in one interactive workflow.
 
-This repository contains the **hosted web edition of A2CA 2.0.41**, prepared for deployment on Railway.
+This repository contains the **hosted web edition of A2CA 2.0.42**, prepared for deployment on Railway.
 
 ## Features
 
@@ -23,7 +23,7 @@ This repository contains the **hosted web edition of A2CA 2.0.41**, prepared for
 The hosted edition has two layers:
 
 1. **Browser application** – HTML/CSS/JavaScript under `resources/`. Most analysis, plotting, session handling, FastTree execution, and structure interaction happen in the browser.
-2. **Small Python web server** – `main.py`. It serves A2CA and provides narrowly scoped same-origin proxy endpoints for NCBI BLAST/Protein EFetch and RCSB PDB retrieval.
+2. **Small Python web server** – `main.py`. It serves A2CA, provides narrowly scoped same-origin proxy endpoints for NCBI BLAST/Protein EFetch and RCSB PDB retrieval, and executes MAFFT locally in the hosted container.
 
 The Python backend uses only the standard library. No user data are intentionally persisted by the server.
 
@@ -53,7 +53,7 @@ Railway documentation:
 
 ## Local development of the web edition
 
-Python 3.12 is recommended for development. No Python packages are required.
+Python 3.12 is recommended for development. No Python packages are required. MAFFT must also be installed and available on `PATH` for the FASTA workflow.
 
 ```bash
 python main.py
@@ -108,7 +108,7 @@ A2CA/
 A2CA uses or communicates with:
 
 - **NCBI BLAST Common URL API** and **NCBI Protein EFetch** for homolog discovery and protein-sequence retrieval.
-- **MAFFT** through the EMBL-EBI Job Dispatcher for multiple-sequence alignment.
+- **MAFFT** executed directly in the A2CA server container (`mafft --auto`) for multiple-sequence alignment.
 - **FastTree 2.1.11** through BioWasm/Aioli for browser-side phylogenetic inference.
 - **RCSB Protein Data Bank** for structure retrieval by PDB identifier.
 - **3Dmol.js 2.5.5** for interactive WebGL structure visualization.
@@ -119,7 +119,7 @@ External services are subject to their own availability, terms, and usage limits
 
 A2CA does not intentionally save uploaded sequences, structures, or `.a2ca` sessions on the web server. Analysis state is maintained in the user's browser and can be exported explicitly by the user.
 
-When the relevant workflow is used, user-provided data can be forwarded to external services, including NCBI, EMBL-EBI, RCSB PDB, and BioWasm-hosted browser components. Deployments intended for public use should provide an appropriate privacy/data-processing notice.
+When the relevant workflow is used, user-provided data can be forwarded to external services, including NCBI, RCSB PDB, and BioWasm-hosted browser components. FASTA sequences sent to the MAFFT workflow are processed inside the A2CA server container rather than forwarded to EMBL-EBI. Deployments intended for public use should provide an appropriate privacy/data-processing notice.
 
 The public proxy endpoints are parameter-restricted, same-origin protected, size limited, and rate limited. NCBI BLAST requests are additionally serialized conservatively so the hosted service does not contact the remote BLAST endpoint too frequently.
 
@@ -143,7 +143,7 @@ A machine-readable citation is provided in [`CITATION.cff`](CITATION.cff).
 
 ## Versioning
 
-The application version is stored in [`VERSION`](VERSION). Git tags for releases should use the form `v2.0.41`.
+The application version is stored in [`VERSION`](VERSION). Git tags for releases should use the form `v2.0.42`.
 
 ## License and reuse
 

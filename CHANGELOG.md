@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.42 – 2026-09-20
+
+- Replaced the hosted EMBL-EBI MAFFT Job Dispatcher workflow with server-side `mafft --auto` execution on Railway to eliminate remote queue delays.
+- Added a same-origin `/api/mafft` endpoint with size, rate, timeout, and concurrency safeguards.
+- Added Railpack runtime installation of the MAFFT binary.
+- Removed the obsolete MAFFT contact-email requirement from the FASTA workflow.
+- Removed the hosted-web Requirements subsection from the landing-page Resources panel.
+- Harmonized the heights of the query-file and query-fetch controls on the single-query page.
+
 ## 2.0.41 – 2026-09-20
 
 - Split the hosted web edition from the desktop/offline distribution.

@@ -462,13 +462,13 @@ button.blast-stop-button:hover{background:#b96f22}
 /* v2.0.39 single-query input layout */
 .blast-query-source-grid{align-items:start}
 .blast-query-source-card{min-width:0}
-#queryFile.blast-source-control{min-height:48px;box-sizing:border-box}
+#queryFile.blast-source-control{height:50px;min-height:50px;box-sizing:border-box;padding:6px 8px}
 .blast-fetch-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:10px;align-items:stretch}
-.blast-fetch-row .blast-source-control,.blast-fetch-row .blast-fetch-button{min-height:48px;box-sizing:border-box}
-.blast-fetch-row .blast-fetch-button{padding:0 18px;white-space:nowrap}
+.blast-fetch-row input.blast-source-control{height:50px;min-height:50px;box-sizing:border-box;padding:0 12px}
+.blast-fetch-row .blast-fetch-button{height:50px;min-height:50px;box-sizing:border-box;padding:0 18px;white-space:nowrap}
 .blast-manual-query-section{margin-top:18px}
 .blast-manual-query-section .blast-query-textarea{width:100%;min-height:180px;box-sizing:border-box}
 .blast-structure-chain-controls{margin-top:16px}
 @media(max-width:760px){.blast-fetch-row{grid-template-columns:1fr}.blast-fetch-row .blast-fetch-button{min-height:42px}}
 
-/* Hosted web release 2.0.41 */
+/* Hosted web release 2.0.42 */

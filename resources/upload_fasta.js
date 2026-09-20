@@ -2,7 +2,6 @@
 (function(){
   const $=id=>document.getElementById(id);
   const embedded=window.parent!==window;
-  const MAFFT_BASE='https://www.ebi.ac.uk/Tools/services/rest/mafft';
   let validRecords=null;
   let pipelineComplete=false;
   let finalSession=null;
@@ -70,7 +69,6 @@
       $('fastaText').value=data.blastFastaText;
       $('fastaFileStatus').className='status good';
       $('fastaFileStatus').textContent=`Imported from NCBI BLAST: ${Object.keys(records).length} sequences${data.blastMeta?.rid?` (RID ${data.blastMeta.rid})`:''}.`;
-      if(data.blastEmail)$('ebiEmail').value=data.blastEmail;
       const back=$('fastaBackBtn');
       if(back){back.removeAttribute('target');back.href=A2CA.localPageUrl('upload_single.html');back.textContent='Back to BLAST';}
       validateInput();
@@ -100,12 +98,10 @@
     setProgress(0,'Waiting to start.');
   }
 
-  function emailValid(){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($('ebiEmail').value.trim());}
 
   function setInputsDisabled(disabled){
     $('fastaFile').disabled=disabled;
     $('fastaText').disabled=disabled;
-    $('ebiEmail').disabled=disabled;
   }
 
   function validateInput(){
@@ -127,7 +123,7 @@
       const lens=names.map(n=>parsed[n].length);
       $('sequenceValidation').className='status good';
       $('sequenceValidation').textContent=`Valid FASTA: ${names.length} sequences, ${Math.min(...lens)}–${Math.max(...lens)} residues.`;
-      $('runPipelineBtn').disabled=running||!emailValid();
+      $('runPipelineBtn').disabled=running;
     }catch(e){
       validRecords=null;$('sequenceValidation').className='status bad';$('sequenceValidation').textContent='Error: '+e.message;$('runPipelineBtn').disabled=true;
     }
@@ -142,7 +138,6 @@
     }catch(e){$('fastaFileStatus').className='status bad';$('fastaFileStatus').textContent='Error: '+e.message;}
   });
   $('fastaText').addEventListener('input',validateInput);
-  $('ebiEmail').addEventListener('input',validateInput);
 
   async function fetchText(url,options,timeoutMs=90000){
     const res=await A2CA.fetchWithTimeout(url,{cache:'no-store',...(options||{})},timeoutMs);
@@ -151,120 +146,17 @@
     return text.trim();
   }
 
-  function parseResultTypes(xml){
-    const ids=[];
-    try{
-      const doc=new DOMParser().parseFromString(xml,'application/xml');
-      if(!doc.querySelector('parsererror')){
-        doc.querySelectorAll('identifier').forEach(n=>{const x=n.textContent.trim();if(x&&!ids.includes(x))ids.push(x);});
-      }
-    }catch(e){}
-    if(!ids.length){
-      for(const m of xml.matchAll(/<identifier>\s*([^<]+?)\s*<\/identifier>/gi)){
-        const x=m[1].trim();if(x&&!ids.includes(x))ids.push(x);
-      }
-    }
-    return ids;
-  }
-
-  function looksLikeAlignedFasta(text){
-    if(!/^\s*>/m.test(text))return false;
-    try{
-      const parsed=A2CA.parseFasta(text);
-      return Object.keys(parsed).length>=3;
-    }catch(e){return false;}
-  }
-
-  async function collectMafftDiagnostics(jobId,ids){
-    const priority=['error','errors','stderr','toolraw','out','stdout','log'];
-    const ordered=[...priority.filter(x=>ids.includes(x)),...ids.filter(x=>!priority.includes(x))];
-    for(const type of ordered){
-      if(/png|svg|jpeg|jpg|tree|phylotree/i.test(type))continue;
-      try{
-        const text=await fetchText(`${MAFFT_BASE}/result/${encodeURIComponent(jobId)}/${encodeURIComponent(type)}`);
-        if(text&&text.length){
-          const clean=text.replace(/\s+/g,' ').trim();
-          if(clean)return `${type}: ${clean.slice(0,700)}${clean.length>700?'…':''}`;
-        }
-      }catch(e){}
-    }
-    return '';
-  }
-
-  async function retrieveMafftAlignment(jobId){
-    const xml=await fetchText(`${MAFFT_BASE}/resulttypes/${encodeURIComponent(jobId)}`);
-    const ids=parseResultTypes(xml);
-    if(!ids.length)throw new Error(`MAFFT job ${jobId} finished, but EMBL-EBI returned no result types.`);
-
-    const preferred=['aln-fasta','fa','fasta'];
-    const candidates=[...preferred.filter(x=>ids.includes(x)),...ids.filter(x=>/fasta|aln/i.test(x)&&!preferred.includes(x))];
-    for(const type of candidates){
-      try{
-        const aln=await fetchText(`${MAFFT_BASE}/result/${encodeURIComponent(jobId)}/${encodeURIComponent(type)}`);
-        if(looksLikeAlignedFasta(aln))return {alignmentText:aln.trim()+'\n',resultType:type,resultTypes:ids};
-      }catch(e){}
-    }
-
-    // Some Job Dispatcher configurations expose the selected alignment as a generic
-    // text result. Inspect textual outputs rather than assuming one identifier.
-    for(const type of ids){
-      if(candidates.includes(type)||/png|svg|jpeg|jpg|tree|phylotree|sequence/i.test(type))continue;
-      try{
-        const text=await fetchText(`${MAFFT_BASE}/result/${encodeURIComponent(jobId)}/${encodeURIComponent(type)}`);
-        if(looksLikeAlignedFasta(text))return {alignmentText:text.trim()+'\n',resultType:type,resultTypes:ids};
-      }catch(e){}
-    }
-
-    const diagnostic=await collectMafftDiagnostics(jobId,ids);
-    const available=ids.join(', ');
-    throw new Error(`MAFFT job ${jobId} finished without a usable FASTA alignment. Available result types: ${available}.${diagnostic?` EMBL-EBI output: ${diagnostic}`:''}`);
-  }
-
-  async function runMafft(fasta,email){
-    const body=new URLSearchParams();
-    body.set('email',email);
-    body.set('title','A2CA MAFFT alignment');
-    body.set('sequence',fasta);
-    body.set('stype','protein');
-
-    // Match the defaults used by EMBL-EBI's official MAFFT REST client rather
-    // than relying on implicit server-side defaults.
-    body.set('format','fasta');
-    body.set('matrix','bl62');
-    body.set('gapopen','1.53');
-    body.set('order','aligned');
-    body.set('nbtree','2');
-    body.set('treeout','true');
-    body.set('maxiterate','2');
-    body.set('ffts','none');
-
-    const jobId=await fetchText(`${MAFFT_BASE}/run/`,{
+  async function runMafft(fasta){
+    const res=await A2CA.fetchWithTimeout('/api/mafft',{
       method:'POST',
-      headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},
-      body
-    });
-    if(!jobId||/error/i.test(jobId))throw new Error(`MAFFT job submission failed${jobId?`: ${jobId}`:'.'}`);
-
-    let status='QUEUED',polls=0;
-    while(status==='QUEUED'||status==='RUNNING'||status==='PENDING'){
-      await new Promise(r=>setTimeout(r,polls?3500:1800));
-      status=(await fetchText(`${MAFFT_BASE}/status/${encodeURIComponent(jobId)}`)).trim().toUpperCase();
-      polls++;
-      setProgress(Math.min(58,24+polls*3),`MAFFT job ${jobId}: ${status.toLowerCase()}.`);
-      if(polls>240)throw new Error(`MAFFT job ${jobId} did not finish within the expected time.`);
-    }
-
-    if(status!=='FINISHED'){
-      let diagnostic='';
-      try{
-        const xml=await fetchText(`${MAFFT_BASE}/resulttypes/${encodeURIComponent(jobId)}`);
-        diagnostic=await collectMafftDiagnostics(jobId,parseResultTypes(xml));
-      }catch(e){}
-      throw new Error(`MAFFT job ${jobId} ended with status ${status}.${diagnostic?` EMBL-EBI output: ${diagnostic}`:''}`);
-    }
-
-    const result=await retrieveMafftAlignment(jobId);
-    return {...result,jobId};
+      headers:{'Content-Type':'text/plain;charset=UTF-8','X-A2CA-Request':'web'},
+      body:fasta,
+      cache:'no-store'
+    },330000);
+    const text=await res.text();
+    if(!res.ok)throw new Error(text.trim()||`MAFFT server returned HTTP ${res.status}`);
+    if(!looksLikeAlignedFasta(text))throw new Error('The A2CA MAFFT server did not return a valid FASTA alignment.');
+    return {alignmentText:text.trim()+'\n',resultType:'server-mafft-auto',resultTypes:['server-mafft-auto'],jobId:null};
   }
 
   async function runFastTree(alignmentText){
@@ -287,12 +179,12 @@
 
   $('runPipelineBtn').onclick=async()=>{
     validateInput();
-    if(!validRecords||!emailValid()||running)return;
+    if(!validRecords||running)return;
     running=true;setInputsDisabled(true);$('runPipelineBtn').disabled=true;$('continueBtn').disabled=true;$('viewTreeBtn').disabled=true;$('pipelineProgress').hidden=false;
     const fasta=A2CA.formatFasta(validRecords);
     try{
-      stepState('stepInput','done');stepState('stepMafft','active');setProgress(12,'Submitting sequences to MAFFT at EMBL-EBI…');
-      const mafft=await runMafft(fasta,$('ebiEmail').value.trim());
+      stepState('stepInput','done');stepState('stepMafft','active');setProgress(18,'Running MAFFT on the A2CA server…');
+      const mafft=await runMafft(fasta);
       const alignment=A2CA.parseFasta(mafft.alignmentText);
       stepState('stepMafft','done');stepState('stepFasttree','active');setProgress(64,`MAFFT complete (${Object.keys(alignment).length} sequences). Initializing FastTree…`);
       const treeText=await runFastTree(mafft.alignmentText);
@@ -339,7 +231,7 @@
       pipelineComplete=false;$('continueBtn').disabled=true;$('viewAlignmentBtn').disabled=true;$('viewTreeBtn').disabled=true;
     }finally{
       running=false;setInputsDisabled(false);
-      $('runPipelineBtn').disabled=!(validRecords&&emailValid());
+      $('runPipelineBtn').disabled=!validRecords;
       if(pipelineComplete){$('continueBtn').disabled=false;$('viewAlignmentBtn').disabled=false;$('viewTreeBtn').disabled=false;}
     }
   };

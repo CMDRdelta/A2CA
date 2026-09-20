@@ -16,7 +16,7 @@
   <div class="container workflow-container">
     <section class="card hero start-version-card">
       <h1>A2CA: Amino Acid Cluster Analysis</h1>
-      <h2>Open Beta – web version 2.0.41</h2>
+      <h2>Open Beta – web version 2.0.42</h2>
       <div class="start-version-content">
         <div class="start-version-text">
           <p>Protein function emerges from a highly coupled three-dimensional scaffold in which substitutions can influence interactions far beyond an active or binding site. This complexity makes it difficult to distinguish residues that merely vary from positions constrained by structure, chemistry, or compensatory evolution, complicating both mechanistic interpretation and rational protein engineering. A2CA integrates multiple sequence alignments, phylogenetic trees, amino-acid physicochemical properties, optional protein structures, and pairwise coevolution analyses to place residue-level variation into an evolutionary context and help prioritize positions for experimental investigation.</p>
@@ -74,29 +74,21 @@
         <p>The original R/Shiny implementation of A2CA is archived as: D. Eggerichs, D. Tischler; Science Data Bank (2023), DOI: <a href="https://doi.org/10.57760/sciencedb.09549" target="_blank" rel="noopener noreferrer">www.doi.org/10.57760/sciencedb.09549</a>.</p>
         <p>Source code, version history, and future releases are maintained in the <a href="https://github.com/CMDRdelta/A2CA" target="_blank" rel="noopener noreferrer">A2CA GitHub repository</a>.</p>
 
-        <h3>Requirements</h3>
-        <ul class="resource-list">
-          <li><b>No local installation is required.</b> A2CA runs as a hosted web application.</li>
-          <li><b>A modern web browser</b> with JavaScript, WebGL, local storage, and file access enabled. Current Chrome, Edge, Firefox, and Safari versions are recommended.</li>
-          <li><b>An internet connection</b> is required for external scientific services and browser-loaded components used by the BLAST, MAFFT/FastTree, PDB-retrieval, and structure-visualization workflows.</li>
-          <li>User-provided sequence or structure data may be forwarded to the external scientific services listed below when the corresponding workflow is used.</li>
-        </ul>
-
         <h3>Software and services</h3>
         <ul class="resource-list resource-programs">
-          <li><a href="https://www.ebi.ac.uk/jdispatcher/msa/mafft" target="_blank" rel="noopener noreferrer">MAFFT</a> through the EMBL-EBI Job Dispatcher for multiple-sequence alignment.</li>
+          <li><a href="https://mafft.cbrc.jp/alignment/software/" target="_blank" rel="noopener noreferrer">MAFFT</a>, executed on the A2CA server using the automatic strategy, for multiple-sequence alignment.</li>
           <li><a href="https://morgannprice.github.io/fasttree/" target="_blank" rel="noopener noreferrer">FastTree 2.1.11</a>, loaded through <a href="https://biowasm.com/" target="_blank" rel="noopener noreferrer">BioWasm/Aioli</a>, for browser-side phylogenetic tree inference.</li>
           <li><a href="https://3dmol.org/" target="_blank" rel="noopener noreferrer">3Dmol.js 2.5.5</a> for interactive WebGL protein-structure visualization.</li>
           <li><a href="https://www.rcsb.org/" target="_blank" rel="noopener noreferrer">RCSB Protein Data Bank</a> for retrieval of structures by PDB identifier.</li>
           <li><a href="https://blast.ncbi.nlm.nih.gov/doc/blast-help/urlapi.html" target="_blank" rel="noopener noreferrer">NCBI BLAST Common URL API</a> and NCBI Protein EFetch for homolog discovery and retrieval of cluster-representative protein sequences from a single query.</li>
-          <li>The A2CA interface and analyses use browser-native HTML, CSS, JavaScript, SVG, the File API, and WebGL. A small hosted Python backend provides same-origin access to NCBI and RCSB services.</li>
+          <li>The A2CA interface and analyses use browser-native HTML, CSS, JavaScript, SVG, the File API, and WebGL. A small hosted Python backend provides same-origin access to NCBI and RCSB services and executes MAFFT.</li>
         </ul>
       </div>
     </details>
 
     <footer class="start-credit" aria-label="A2CA version and usage information">
       <span>Last modified: 20 September 2026</span>
-      <span>Version 2.0.41</span>
+      <span>Version 2.0.42</span>
       <span>Copyright &copy; 2026 Daniel Eggerichs. A2CA may be freely used for research purposes.</span>
     </footer>
   </div>

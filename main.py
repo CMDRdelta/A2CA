@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import os
 import re
+import shutil
+import subprocess
+import tempfile
 import threading
 import time
 import urllib.error
@@ -29,7 +32,7 @@ HOST = os.environ.get("HOST", "0.0.0.0")
 PORT = int(os.environ.get("PORT", "8000"))
 MAX_REQUEST_BODY = 2 * 1024 * 1024
 MAX_REMOTE_RESPONSE = 25 * 1024 * 1024
-USER_AGENT = "A2CA/2.0.41 (Amino Acid Cluster Analysis; hosted web application)"
+USER_AGENT = "A2CA/2.0.42 (Amino Acid Cluster Analysis; hosted web application)"
 API_HEADER = "X-A2CA-Request"
 API_HEADER_VALUE = "web"
 
@@ -38,6 +41,11 @@ NCBI_TARGETS = {
     "/api/ncbi/efetch": "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi",
 }
 RCSB_PDB_ENDPOINT = "/api/rcsb/pdb"
+MAFFT_ENDPOINT = "/api/mafft"
+MAX_MAFFT_INPUT = 1 * 1024 * 1024
+MAFFT_TIMEOUT_SECONDS = int(os.environ.get("A2CA_MAFFT_TIMEOUT", "300"))
+MAFFT_CONCURRENCY = max(1, int(os.environ.get("A2CA_MAFFT_CONCURRENCY", "1")))
+MAFFT_GATE = threading.BoundedSemaphore(MAFFT_CONCURRENCY)
 
 BLAST_ALLOWED_PARAMS = {
     "CMD", "PROGRAM", "DATABASE", "QUERY", "EXPECT", "HITLIST_SIZE", "GAPCOSTS",
@@ -99,7 +107,7 @@ class A2CAServer(ThreadingHTTPServer):
 
 
 class A2CAHandler(SimpleHTTPRequestHandler):
-    server_version = "A2CA-Web/2.0.41"
+    server_version = "A2CA-Web/2.0.42"
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, directory=str(ROOT), **kwargs)
@@ -332,12 +340,83 @@ class A2CAHandler(SimpleHTTPRequestHandler):
             status = HTTPStatus.BAD_GATEWAY
         self._send_text(int(status), payload)
 
+    def _run_mafft(self, body: bytes) -> None:
+        """Run MAFFT locally in the Railway container and return aligned FASTA.
+
+        The browser already validates the FASTA in detail.  The server repeats the
+        important safety checks because this endpoint is reachable independently.
+        MAFFT is invoked without a shell and with a fixed argument list.
+        """
+        if not body or len(body) > MAX_MAFFT_INPUT:
+            self._plain_error(HTTPStatus.REQUEST_ENTITY_TOO_LARGE, "MAFFT input is empty or exceeds the 1 MB safety limit")
+            return
+        try:
+            fasta = body.decode("utf-8", "strict")
+        except UnicodeDecodeError:
+            self._plain_error(HTTPStatus.BAD_REQUEST, "MAFFT input must be UTF-8 FASTA text")
+            return
+
+        headers = [line for line in fasta.splitlines() if line.startswith(">")]
+        if not (3 <= len(headers) <= 500):
+            self._plain_error(HTTPStatus.BAD_REQUEST, "MAFFT requires 3-500 FASTA sequences")
+            return
+        if "\x00" in fasta or any(ord(ch) < 9 for ch in fasta):
+            self._plain_error(HTTPStatus.BAD_REQUEST, "MAFFT input contains unsupported control characters")
+            return
+
+        client = self._client_ip()
+        if not RATE_LIMITER.allow(client, "mafft", 12, 3600.0):
+            self._plain_error(HTTPStatus.TOO_MANY_REQUESTS, "MAFFT submission limit reached for this client; retry later")
+            return
+
+        mafft = shutil.which("mafft")
+        if not mafft:
+            self._plain_error(HTTPStatus.SERVICE_UNAVAILABLE, "MAFFT is not installed in the A2CA server runtime")
+            return
+        if not MAFFT_GATE.acquire(blocking=False):
+            self._plain_error(HTTPStatus.SERVICE_UNAVAILABLE, "The A2CA MAFFT worker is currently busy; retry in a moment")
+            return
+
+        try:
+            with tempfile.TemporaryDirectory(prefix="a2ca-mafft-") as tmpdir:
+                input_path = Path(tmpdir) / "input.fasta"
+                input_path.write_text(fasta if fasta.endswith("\n") else fasta + "\n", encoding="utf-8")
+                try:
+                    proc = subprocess.run(
+                        [mafft, "--auto", "--quiet", "--thread", "1", str(input_path)],
+                        stdout=subprocess.PIPE,
+                        stderr=subprocess.PIPE,
+                        timeout=MAFFT_TIMEOUT_SECONDS,
+                        check=False,
+                    )
+                except subprocess.TimeoutExpired:
+                    self._plain_error(HTTPStatus.GATEWAY_TIMEOUT, f"MAFFT exceeded the {MAFFT_TIMEOUT_SECONDS} s server timeout")
+                    return
+
+            if proc.returncode != 0:
+                diagnostic = proc.stderr.decode("utf-8", "replace").strip()[:1500]
+                self._plain_error(HTTPStatus.BAD_GATEWAY, "MAFFT failed" + (f": {diagnostic}" if diagnostic else ""))
+                return
+            output = proc.stdout
+            if not output.startswith(b">") or len(output) > MAX_REMOTE_RESPONSE:
+                self._plain_error(HTTPStatus.BAD_GATEWAY, "MAFFT did not return a valid FASTA alignment")
+                return
+            self._send_text(HTTPStatus.OK, output)
+        finally:
+            MAFFT_GATE.release()
+
     def do_GET(self):
         parsed = urllib.parse.urlsplit(self.path)
 
         if parsed.path == "/health":
-            payload = b"ok\n"
-            self.send_response(HTTPStatus.OK)
+            mafft_path = shutil.which("mafft")
+            if mafft_path:
+                payload = b"ok\n"
+                status = HTTPStatus.OK
+            else:
+                payload = b"mafft-missing\n"
+                status = HTTPStatus.SERVICE_UNAVAILABLE
+            self.send_response(status)
             self.send_header("Content-Type", "text/plain; charset=utf-8")
             self.send_header("Content-Length", str(len(payload)))
             self.end_headers()
@@ -378,8 +457,8 @@ class A2CAHandler(SimpleHTTPRequestHandler):
             return
         if not self._api_request_allowed():
             return
-        if parsed.path not in NCBI_TARGETS:
-            self._plain_error(HTTPStatus.METHOD_NOT_ALLOWED, "POST is only supported for NCBI proxy endpoints")
+        if parsed.path not in NCBI_TARGETS and parsed.path != MAFFT_ENDPOINT:
+            self._plain_error(HTTPStatus.METHOD_NOT_ALLOWED, "POST is only supported for A2CA scientific-service endpoints")
             return
 
         try:
@@ -392,7 +471,10 @@ class A2CAHandler(SimpleHTTPRequestHandler):
             return
 
         body = self.rfile.read(length) if length else b""
-        self._proxy_ncbi(parsed.path, parsed.query, body=body)
+        if parsed.path == MAFFT_ENDPOINT:
+            self._run_mafft(body)
+        else:
+            self._proxy_ncbi(parsed.path, parsed.query, body=body)
 
     def do_OPTIONS(self):
         # Deliberately do not enable CORS for API endpoints.
@@ -401,7 +483,7 @@ class A2CAHandler(SimpleHTTPRequestHandler):
 
 def main() -> int:
     server = A2CAServer((HOST, PORT), A2CAHandler)
-    print(f"A2CA web server listening on {HOST}:{PORT}", flush=True)
+    print(f"A2CA web server listening on {HOST}:{PORT}; MAFFT={shutil.which('mafft') or 'missing'}", flush=True)
     try:
         server.serve_forever(poll_interval=0.5)
     except KeyboardInterrupt:

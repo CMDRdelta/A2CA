@@ -138,6 +138,13 @@ def check_deployment(errors: list[str]) -> None:
             errors.append("railway.toml does not start python main.py")
         if 'healthcheckPath = "/health"' not in text:
             errors.append("railway.toml does not configure /health")
+    railpack = ROOT / "railpack.json"
+    if not railpack.exists():
+        errors.append("railpack.json is missing (required to install MAFFT on Railway)")
+    else:
+        rp = railpack.read_text(encoding="utf-8")
+        if '"mafft"' not in rp:
+            errors.append("railpack.json does not install the MAFFT runtime package")
     obsolete = [
         ROOT / "run_A2CA_offline.html",
         ROOT / "run_A2CA_online_Windows.bat",

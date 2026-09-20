@@ -1656,7 +1656,7 @@
     $('saveSessionBtn').onclick=()=>{
       persist();
       try{
-        const text=A2CA.serializeSessionFile(session,'2.0.41');
+        const text=A2CA.serializeSessionFile(session,'2.0.42');
         A2CA.downloadText(`${downloadBase('session')}.a2ca`,'application/json;charset=utf-8',text);
         STATE.audit='Session file saved.';
         $('audit').textContent=STATE.audit;

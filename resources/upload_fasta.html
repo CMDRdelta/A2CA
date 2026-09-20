@@ -35,12 +35,6 @@
       </div>
     </div>
 
-    <div class="pipeline-settings">
-      <label for="ebiEmail">Contact email <span class="required-note">required by EMBL-EBI Job Dispatcher</span></label>
-      <input id="ebiEmail" type="email" class="rounded-input" placeholder="name@example.org" autocomplete="email">
-      <p class="small muted">Used for MAFFT job submission through the EMBL-EBI Job Dispatcher.</p>
-    </div>
-
     <div id="sequenceValidation" class="status" aria-live="polite">Provide FASTA sequences by file upload or paste them into the text box.</div>
 
     <div class="actions">
@@ -52,7 +46,7 @@
       <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
       <ol class="progress-steps">
         <li id="stepInput"><span class="progress-dot"></span><div><b>Input validated</b><small>Check identifiers and protein sequences.</small></div></li>
-        <li id="stepMafft"><span class="progress-dot"></span><div><b>MAFFT alignment</b><small>Submit and retrieve the multiple sequence alignment.</small></div></li>
+        <li id="stepMafft"><span class="progress-dot"></span><div><b>MAFFT alignment</b><small>Run MAFFT on the A2CA server.</small></div></li>
         <li id="stepFasttree"><span class="progress-dot"></span><div><b>FastTree</b><small>Infer the phylogenetic tree in the browser.</small></div></li>
         <li id="stepReady"><span class="progress-dot"></span><div><b>Ready for analysis</b><small>Validate generated alignment and Newick tree.</small></div></li>
       </ol>

@@ -25,3 +25,7 @@ Railway terminates public HTTPS in front of the application. The A2CA process li
 ## User-provided data
 
 Treat uploaded sequences, structures, and `.a2ca` sessions as potentially sensitive. A2CA does not intentionally persist them server-side, but relevant data can be transmitted to external scientific services when those workflows are used. Do not attach private scientific data to public GitHub issues.
+
+## Server-side MAFFT
+
+The hosted FASTA workflow executes MAFFT in the A2CA container with a fixed argument list and no shell interpolation. Inputs are size/rate limited and jobs have a hard runtime timeout.
