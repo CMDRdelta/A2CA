@@ -36,14 +36,14 @@ jobs:
           "$FASTTREE_BIN" -help > /tmp/fasttree-help.txt 2>&1 || true
           head -n 2 /tmp/fasttree-help.txt
 
+      - name: Validate repository
+        run: python tools/validate_repo.py
+
       - name: Install JavaScript validation tools
         run: npm install --ignore-scripts --no-audit --no-fund --no-package-lock
 
       - name: Install browser for workflow smoke test
         run: npx playwright install --with-deps chromium
-
-      - name: Validate repository
-        run: python tools/validate_repo.py
 
       - name: Lint JavaScript
         run: npm run lint -- --max-warnings 9999
