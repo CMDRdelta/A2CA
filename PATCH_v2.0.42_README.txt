@@ -1,7 +1,0 @@
-A2CA web patch 2.0.42
-
-Replace the files in the GitHub repository with the files in this archive, preserving the folder paths.
-
-Important: railpack.json is new and must be added at the repository root. It installs the MAFFT runtime package on Railway. After pushing these files to the linked main branch, Railway should redeploy automatically.
-
-The hosted FASTA workflow now runs MAFFT directly inside the A2CA Railway service instead of submitting to the EMBL-EBI Job Dispatcher.
