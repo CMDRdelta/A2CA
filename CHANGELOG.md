@@ -12,6 +12,7 @@
 - Removed obsolete EMBL-EBI and BioWasm/Aioli workflow code and wording.
 - Strengthened validation/CI with parsed deployment configuration checks, ESLint `no-undef`, and real MAFFT/FastTree API smoke tests.
 - Made the backend read the canonical application version from `VERSION`; browser version labels/session exports now obtain it from `/api/meta`.
+- Fixed GitHub Actions smoke-test false failures caused by `curl | grep -q` under `pipefail`; CI now validates downloaded response files and pins Ubuntu 24.04 for reproducibility.
 
 ## 2.0.42 – 2026-09-20
 
