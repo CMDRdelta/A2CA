@@ -1,23 +1,24 @@
 # Contributing to A2CA
 
-A2CA is currently an open-beta scientific application. Contributions should preserve reproducibility, browser compatibility, and the distinction between offline and online workflows.
+A2CA is an open-beta scientific web application. Contributions should preserve reproducibility, browser compatibility, data safety, and the scientific meaning of the analysis outputs.
 
 ## Development workflow
 
 1. Create a branch from the current default branch.
 2. Make focused changes.
 3. Run `python tools/validate_repo.py`.
-4. Test both `run_A2CA_offline.html` and the Python-backed online launcher when the change touches networking or routing.
+4. Start the web edition with `python main.py` and exercise the affected workflow in a browser.
 5. Do not commit user `.a2ca` sessions, unpublished sequence data, temporary BLAST results, credentials, or cache files.
 6. Open a pull request describing the scientific and user-interface impact of the change.
 
 ## Coding notes
 
-- Keep external-service access behind the narrowly scoped local proxy.
-- Validate all imported/session-derived values before inserting them into HTML, SVG, filenames, or exported tables.
+- Keep NCBI/RCSB access behind the narrowly scoped same-origin backend.
+- Validate imported/session-derived values before inserting them into HTML, SVG, filenames, or exported tables.
 - Keep alignment/tree identifiers exact; avoid substring-based sequence matching.
 - Add computational limits to algorithms with quadratic memory or runtime.
-- Prefer browser-native functionality and the Python standard library unless a new dependency provides a clear scientific or maintenance benefit.
+- Do not introduce persistent server-side storage of user sequence/structure data without an explicit design and privacy review.
+- Keep the hosted web edition separate from desktop/offline distributions.
 
 ## Licensing
 

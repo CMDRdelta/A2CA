@@ -1,2 +1,2 @@
-# A2CA online mode uses only the Python standard library.
+# A2CA web server uses only the Python standard library.
 # No third-party Python packages are required.

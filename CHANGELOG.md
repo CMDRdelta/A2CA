@@ -1,5 +1,14 @@
 # Changelog
 
+## 2.0.41 – 2026-09-20
+
+- Split the hosted web edition from the desktop/offline distribution.
+- Added a persistent Railway-compatible web server bound to the deployment `PORT`.
+- Removed browser lifecycle shutdown, local launchers, and online/offline UI states.
+- Enabled all three input workflows in the hosted application.
+- Routed NCBI and RCSB requests through hardened same-origin API endpoints.
+- Added Railway configuration and a deployment health check.
+
 All notable repository releases should be documented here.
 
 ## 2.0.40 – 2026-09-20
