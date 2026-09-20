@@ -16,6 +16,29 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "resources"
 
+IGNORED_DIRS = {
+    ".git",
+    "node_modules",
+    ".venv",
+    "venv",
+    "dist",
+    "build",
+    "coverage",
+    ".pytest_cache",
+    ".mypy_cache",
+    ".ruff_cache",
+}
+
+
+def is_ignored(path: Path) -> bool:
+    """Return True for third-party, virtual-env, and build-output paths."""
+    try:
+        relative = path.relative_to(ROOT)
+    except ValueError:
+        return True
+    return any(part in IGNORED_DIRS for part in relative.parts)
+
+
 
 class HtmlRefs(HTMLParser):
     def __init__(self, file: Path) -> None:
@@ -51,7 +74,7 @@ def local_target(base: Path, ref: str) -> Path | None:
 
 def check_html(errors: list[str]) -> None:
     root_resolved = ROOT.resolve()
-    for file in sorted(ROOT.rglob("*.html")):
+    for file in sorted(p for p in ROOT.rglob("*.html") if not is_ignored(p)):
         parser = HtmlRefs(file)
         parser.feed(file.read_text(encoding="utf-8"))
         seen: set[str] = set()
@@ -76,7 +99,7 @@ def check_html(errors: list[str]) -> None:
 
 
 def check_css(errors: list[str]) -> None:
-    for file in sorted(ROOT.rglob("*.css")):
+    for file in sorted(p for p in ROOT.rglob("*.css") if not is_ignored(p)):
         text = file.read_text(encoding="utf-8")
         for ref in re.findall(r"url\(['\"]?([^'\")]+)", text):
             target = local_target(file.parent, ref)
@@ -108,6 +131,8 @@ def check_version(errors: list[str]) -> None:
     if f"version: {version}" not in citation:
         errors.append("CITATION.cff version does not match VERSION")
     for file in ROOT.rglob("*"):
+        if is_ignored(file):
+            continue
         if not file.is_file() or file.name in {"CHANGELOG.md", "validate_repo.py"}:
             continue
         if file.suffix.lower() not in {".py", ".js", ".html", ".css", ".md", ".json", ".toml", ".cff"}:
@@ -120,6 +145,8 @@ def check_version(errors: list[str]) -> None:
 def check_generated_files(errors: list[str]) -> None:
     bad = []
     for p in ROOT.rglob("*"):
+        if is_ignored(p):
+            continue
         if "__pycache__" in p.parts or p.suffix in {".pyc", ".pyo"}:
             bad.append(str(p.relative_to(ROOT)))
     if bad:
@@ -127,7 +154,7 @@ def check_generated_files(errors: list[str]) -> None:
 
 
 def check_python(errors: list[str]) -> None:
-    for file in sorted(ROOT.rglob("*.py")):
+    for file in sorted(p for p in ROOT.rglob("*.py") if not is_ignored(p)):
         try:
             compile(file.read_text(encoding="utf-8"), str(file), "exec")
         except SyntaxError as exc:
@@ -140,7 +167,7 @@ def check_javascript(errors: list[str]) -> None:
     except (FileNotFoundError, subprocess.CalledProcessError):
         print("Note: Node.js not available; JavaScript syntax check skipped.")
         return
-    for file in sorted(ROOT.rglob("*.js")):
+    for file in sorted(p for p in ROOT.rglob("*.js") if not is_ignored(p)):
         proc = subprocess.run(["node", "--check", str(file)], capture_output=True, text=True)
         if proc.returncode:
             errors.append(f"JavaScript syntax error in {file.relative_to(ROOT)}:\n{proc.stderr.strip()}")
