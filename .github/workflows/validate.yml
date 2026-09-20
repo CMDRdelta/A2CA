@@ -24,18 +24,32 @@ jobs:
         with:
           node-version: "22"
 
-      - name: Install MAFFT
+      - name: Install scientific runtimes
         shell: bash
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends mafft
+          sudo apt-get install -y --no-install-recommends mafft fasttree
           command -v mafft
           mafft --version
+          command -v fasttree
+          fasttree -help 2>&1 | head -n 2 || true
+
+      - name: Install JavaScript validation tools
+        run: npm install --ignore-scripts --no-audit --no-fund --no-package-lock
+
+      - name: Install browser for workflow smoke test
+        run: npx playwright install --with-deps chromium
 
       - name: Validate repository
         run: python tools/validate_repo.py
 
-      - name: Smoke-test web server
+      - name: Lint JavaScript
+        run: npm run lint -- --max-warnings 9999
+
+      - name: Test scientific JavaScript modules
+        run: npm run science-test
+
+      - name: Smoke-test web server and scientific services
         shell: bash
         run: |
           set -euo pipefail
@@ -44,7 +58,7 @@ jobs:
           trap 'kill $SERVER_PID 2>/dev/null || true' EXIT
 
           READY=0
-          for i in {1..40}; do
+          for i in {1..60}; do
             if curl --fail --silent http://127.0.0.1:8765/health >/dev/null; then
               READY=1
               break
@@ -57,6 +71,9 @@ jobs:
             echo "--- MAFFT ---"
             command -v mafft || true
             mafft --version || true
+            echo "--- FastTree ---"
+            command -v fasttree || true
+            fasttree -help 2>&1 | head -n 4 || true
             echo "--- Server log ---"
             cat /tmp/a2ca-server.log || true
             exit 1
@@ -64,3 +81,35 @@ jobs:
 
           curl --fail --silent http://127.0.0.1:8765/health | grep -q '^ok$'
           curl --fail --silent --location http://127.0.0.1:8765/ | grep -q "Amino Acid Cluster Analysis"
+          curl --fail --silent -H 'X-A2CA-Request: web' http://127.0.0.1:8765/api/meta | grep -q '"version":"2.0.43"'
+          curl --fail --silent -H 'X-A2CA-Request: web' http://127.0.0.1:8765/api/status | grep -q '"status":"ok"'
+
+          cat >/tmp/a2ca-input.fasta <<'FASTA'
+          >seq1
+          MSTNPKPQRKTKRNTNRRPQDVKFPGGGQIVGGVYLLPRRGPRLG
+          >seq2
+          MSTNPKPQRKTKRNTNRRPQDVKFPGGGQIVGGIYLLPRRGPRLG
+          >seq3
+          MSTNPKPQRKTKRNTNRRPQDVKFPGGGQIVAGVYLLPRRGPRLG
+          FASTA
+
+          curl --fail --silent \
+            -H 'X-A2CA-Request: web' \
+            -H 'Content-Type: text/plain;charset=UTF-8' \
+            --data-binary @/tmp/a2ca-input.fasta \
+            http://127.0.0.1:8765/api/mafft > /tmp/a2ca-alignment.fasta
+
+          grep -q '^>seq1' /tmp/a2ca-alignment.fasta
+          grep -q '^>seq2' /tmp/a2ca-alignment.fasta
+          grep -q '^>seq3' /tmp/a2ca-alignment.fasta
+
+          curl --fail --silent \
+            -H 'X-A2CA-Request: web' \
+            -H 'Content-Type: text/plain;charset=UTF-8' \
+            --data-binary @/tmp/a2ca-alignment.fasta \
+            http://127.0.0.1:8765/api/fasttree > /tmp/a2ca-tree.nwk
+
+          grep -q '^(' /tmp/a2ca-tree.nwk
+          grep -q ';$' /tmp/a2ca-tree.nwk
+
+          npm run browser-smoke
