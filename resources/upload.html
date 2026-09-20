@@ -1,0 +1,191 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A2CA – Start analysis</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="workflow-start-page">
+<div id="startView">
+  <nav>
+    <a class="current" href="upload.html">A2CA</a>
+    <div class="steps"><span class="step active">1 Start</span><span class="step">2 Analysis</span></div>
+  </nav>
+
+  <div class="container workflow-container">
+    <section class="card hero start-version-card">
+      <h1>A2CA: Amino Acid Cluster Analysis</h1>
+      <h2>Open Beta – web version 2.0.41</h2>
+      <div class="start-version-content">
+        <div class="start-version-text">
+          <p>Protein function emerges from a highly coupled three-dimensional scaffold in which substitutions can influence interactions far beyond an active or binding site. This complexity makes it difficult to distinguish residues that merely vary from positions constrained by structure, chemistry, or compensatory evolution, complicating both mechanistic interpretation and rational protein engineering. A2CA integrates multiple sequence alignments, phylogenetic trees, amino-acid physicochemical properties, optional protein structures, and pairwise coevolution analyses to place residue-level variation into an evolutionary context and help prioritize positions for experimental investigation.</p>
+          <p><b>Contact: </b><a href="https://www.linkedin.com/in/dr-daniel-eggerichs-7668241b7/">Dr. Daniel Eggerichs</a></p>
+        </div>
+        <div class="start-version-image">
+          <img src="assets/introduction.png" alt="Interactions in a protein">
+        </div>
+      </div>
+    </section>
+
+    <header class="workflow-intro">
+      <h1>How would you like to start?</h1>
+      <p>Choose the entry point that matches your available data. A2CA can retrieve homologous proteins from a single sequence or protein structure with NCBI BLAST, generate an alignment and phylogeny from unaligned FASTA sequences, or start directly from a prepared alignment and tree.</p>
+    </header>
+
+    <section class="workflow-grid workflow-grid-three" aria-label="Analysis start options">
+      <article class="workflow-card available" data-workflow="blast">
+        <div class="workflow-art" style="background-image:url('assets/workflow_blast.png')"></div>
+        <div class="workflow-card-body">
+          <h2>Single sequence</h2>
+          <p>Find homologs from a protein sequence or structure using NCBI BLAST.</p>
+          <a class="button-link success workflow-continue" href="upload_single.html" data-app-page="upload_single.html">Continue</a>
+        </div>
+      </article>
+
+      <article class="workflow-card available" data-workflow="fasta">
+        <div class="workflow-art" style="background-image:url('assets/workflow_fasta.png')"></div>
+        <div class="workflow-card-body">
+          <h2>FASTA sequences</h2>
+          <p>Align sequences and build a phylogenetic tree.</p>
+          <a class="button-link success workflow-continue" href="upload_fasta.html" data-app-page="upload_fasta.html">Continue</a>
+        </div>
+      </article>
+
+      <article class="workflow-card available">
+        <div class="workflow-art" style="background-image:url('assets/workflow_alignment_tree.png')"></div>
+        <div class="workflow-card-body">
+          <h2>Alignment &amp; Tree</h2>
+          <p>Upload a prepared alignment and phylogenetic tree.</p>
+          <a class="button-link success workflow-continue" href="upload_precomputed.html" data-app-page="upload_precomputed.html">Continue</a>
+        </div>
+      </article>
+    </section>
+
+    <div class="session-continue-row" aria-label="Continue a saved A2CA session">
+      <span>Continue a previous session:</span>
+      <input id="sessionFileInput" type="file" accept=".a2ca,.json,application/json" aria-label="Load an A2CA session file">
+    </div>
+    <div id="sessionImportStatus" class="status small" hidden></div>
+
+    <details class="analysis-module start-resources-details">
+      <summary>Resources</summary>
+      <div class="analysis-module-body start-resources-body">
+        <p>The original R/Shiny implementation of A2CA is archived as: D. Eggerichs, D. Tischler; Science Data Bank (2023), DOI: <a href="https://doi.org/10.57760/sciencedb.09549" target="_blank" rel="noopener noreferrer">www.doi.org/10.57760/sciencedb.09549</a>.</p>
+        <p>Source code, version history, and future releases are maintained in the <a href="https://github.com/CMDRdelta/A2CA" target="_blank" rel="noopener noreferrer">A2CA GitHub repository</a>.</p>
+
+        <h3>Requirements</h3>
+        <ul class="resource-list">
+          <li><b>No local installation is required.</b> A2CA runs as a hosted web application.</li>
+          <li><b>A modern web browser</b> with JavaScript, WebGL, local storage, and file access enabled. Current Chrome, Edge, Firefox, and Safari versions are recommended.</li>
+          <li><b>An internet connection</b> is required for external scientific services and browser-loaded components used by the BLAST, MAFFT/FastTree, PDB-retrieval, and structure-visualization workflows.</li>
+          <li>User-provided sequence or structure data may be forwarded to the external scientific services listed below when the corresponding workflow is used.</li>
+        </ul>
+
+        <h3>Software and services</h3>
+        <ul class="resource-list resource-programs">
+          <li><a href="https://www.ebi.ac.uk/jdispatcher/msa/mafft" target="_blank" rel="noopener noreferrer">MAFFT</a> through the EMBL-EBI Job Dispatcher for multiple-sequence alignment.</li>
+          <li><a href="https://morgannprice.github.io/fasttree/" target="_blank" rel="noopener noreferrer">FastTree 2.1.11</a>, loaded through <a href="https://biowasm.com/" target="_blank" rel="noopener noreferrer">BioWasm/Aioli</a>, for browser-side phylogenetic tree inference.</li>
+          <li><a href="https://3dmol.org/" target="_blank" rel="noopener noreferrer">3Dmol.js 2.5.5</a> for interactive WebGL protein-structure visualization.</li>
+          <li><a href="https://www.rcsb.org/" target="_blank" rel="noopener noreferrer">RCSB Protein Data Bank</a> for retrieval of structures by PDB identifier.</li>
+          <li><a href="https://blast.ncbi.nlm.nih.gov/doc/blast-help/urlapi.html" target="_blank" rel="noopener noreferrer">NCBI BLAST Common URL API</a> and NCBI Protein EFetch for homolog discovery and retrieval of cluster-representative protein sequences from a single query.</li>
+          <li>The A2CA interface and analyses use browser-native HTML, CSS, JavaScript, SVG, the File API, and WebGL. A small hosted Python backend provides same-origin access to NCBI and RCSB services.</li>
+        </ul>
+      </div>
+    </details>
+
+    <footer class="start-credit" aria-label="A2CA version and usage information">
+      <span>Last modified: 20 September 2026</span>
+      <span>Version 2.0.41</span>
+      <span>Copyright &copy; 2026 Daniel Eggerichs. A2CA may be freely used for research purposes.</span>
+    </footer>
+  </div>
+</div>
+
+<iframe id="appFrame" title="A2CA application" hidden></iframe>
+
+<script src="a2ca-core.js"></script>
+<script>
+'use strict';
+(function(){
+  const startView=document.getElementById('startView');
+  const frame=document.getElementById('appFrame');
+  const forceNew=new URLSearchParams(location.search).get('new')==='1';
+  let appSession=forceNew?null:A2CA.loadSession();
+  const channelToken=(window.crypto&&typeof window.crypto.randomUUID==='function')?window.crypto.randomUUID():`a2ca-${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+
+  if(forceNew){
+    A2CA.clearSession();
+    try{history.replaceState(null,'',location.pathname);}catch(e){}
+  }
+
+  function openApp(page){
+    startView.hidden=true;
+    frame.hidden=false;
+    const url=new URL(page,location.href);
+    url.searchParams.set('a2caChannel',channelToken);
+    frame.src=url.href;
+  }
+  function showStart(clear=false){
+    if(clear){
+      appSession=null;
+      A2CA.clearSession();
+    }
+    frame.hidden=true;
+    frame.src='about:blank';
+    startView.hidden=false;
+    window.scrollTo({top:0,behavior:'auto'});
+  }
+
+  document.querySelectorAll('[data-app-page]').forEach(link=>{
+    link.addEventListener('click',e=>{
+      e.preventDefault();
+      openApp(link.dataset.appPage);
+    });
+  });
+
+  const sessionInput=document.getElementById('sessionFileInput');
+  const sessionStatus=document.getElementById('sessionImportStatus');
+  sessionInput?.addEventListener('change',async()=>{
+    sessionStatus.hidden=true;
+    const file=sessionInput.files&&sessionInput.files[0];
+    if(!file)return;
+    try{
+      if(file.size>50*1024*1024)throw new Error('The session file is larger than the 50 MB safety limit.');
+      const text=await A2CA.readFile(sessionInput);
+      const restored=A2CA.parseSessionFile(text);
+      appSession=restored;
+      A2CA.saveSession(restored);
+      sessionStatus.className='status good small';
+      sessionStatus.textContent='Valid A2CA session loaded. Opening analysis…';
+      sessionStatus.hidden=false;
+      openApp('analysis.html');
+    }catch(err){
+      sessionStatus.className='status bad small';
+      sessionStatus.textContent='Session could not be loaded: '+err.message;
+      sessionStatus.hidden=false;
+      sessionInput.value='';
+    }
+  });
+
+  window.addEventListener('message',event=>{
+    if(event.source!==frame.contentWindow||!event.data||typeof event.data!=='object')return;
+    if(event.origin!==location.origin)return;
+    if(event.data.a2caChannel!==channelToken)return;
+    const msg=event.data;
+    if(msg.type==='A2CA_SAVE_SESSION'){
+      appSession=msg.data||null;
+      if(appSession)A2CA.saveSession(appSession);
+    }else if(msg.type==='A2CA_REQUEST_SESSION'){
+      event.source.postMessage({type:'A2CA_SESSION',data:appSession,a2caChannel:channelToken},A2CA.messageTargetOrigin());
+    }else if(msg.type==='A2CA_CLEAR_SESSION'){
+      appSession=null;A2CA.clearSession();
+    }else if(msg.type==='A2CA_SHOW_START'||msg.type==='A2CA_SHOW_WELCOME'){
+      showStart(Boolean(msg.data&&msg.data.clear));
+    }
+  });
+})();
+</script>
+</body>
+</html>

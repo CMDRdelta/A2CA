@@ -124,12 +124,38 @@ def check_javascript(errors: list[str]) -> None:
             errors.append(f"JavaScript syntax error in {file.relative_to(ROOT)}:\n{proc.stderr.strip()}")
 
 
+
+def check_deployment(errors: list[str]) -> None:
+    main_py = ROOT / "main.py"
+    railway = ROOT / "railway.toml"
+    if not main_py.exists():
+        errors.append("main.py is missing")
+    if not railway.exists():
+        errors.append("railway.toml is missing")
+    else:
+        text = railway.read_text(encoding="utf-8")
+        if 'startCommand = "python main.py"' not in text:
+            errors.append("railway.toml does not start python main.py")
+        if 'healthcheckPath = "/health"' not in text:
+            errors.append("railway.toml does not configure /health")
+    obsolete = [
+        ROOT / "run_A2CA_offline.html",
+        ROOT / "run_A2CA_online_Windows.bat",
+        ROOT / "run_A2CA_online_Mac.command",
+        RES / "run_A2CA.py",
+    ]
+    for file in obsolete:
+        if file.exists():
+            errors.append(f"obsolete desktop launcher present in web edition: {file.relative_to(ROOT)}")
+
+
 def main() -> int:
     errors: list[str] = []
     check_html(errors)
     check_css(errors)
     check_version(errors)
     check_generated_files(errors)
+    check_deployment(errors)
     check_python(errors)
     check_javascript(errors)
     if errors:

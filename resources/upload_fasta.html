@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A2CA – FASTA sequences</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<nav>
+  <a href="upload.html" target="_top">Start</a>
+  <a class="current" href="upload.html" target="_top">Input</a>
+  <div class="steps"><span class="step active">1 Input</span><span class="step">2 Reference</span><span class="step">3 Analysis</span></div>
+</nav>
+<div class="container upload-workflow-container">
+  <section class="card">
+    <div class="page-header-row">
+      <div>
+        <h1>FASTA sequences</h1>
+        <p class="muted">Provide three or more unaligned protein sequences. A2CA will create a MAFFT alignment and infer a tree with FastTree before starting the analysis.</p>
+      </div>
+    </div>
+
+    <div class="two fasta-input-grid">
+      <div>
+        <h2>Upload FASTA</h2>
+        <label for="fastaFile">Select FASTA file</label>
+        <input id="fastaFile" type="file" accept=".fas,.fasta,.fa,.faa,.txt">
+        <div id="fastaFileStatus" class="status">No file selected.</div>
+      </div>
+      <div>
+        <h2>or paste sequences</h2>
+        <label for="fastaText">FASTA text</label>
+        <textarea id="fastaText" class="fasta-textarea" spellcheck="false" placeholder=">Sequence_1&#10;MST...&#10;>Sequence_2&#10;MAA..."></textarea>
+      </div>
+    </div>
+
+    <div class="pipeline-settings">
+      <label for="ebiEmail">Contact email <span class="required-note">required by EMBL-EBI Job Dispatcher</span></label>
+      <input id="ebiEmail" type="email" class="rounded-input" placeholder="name@example.org" autocomplete="email">
+      <p class="small muted">Used for MAFFT job submission through the EMBL-EBI Job Dispatcher.</p>
+    </div>
+
+    <div id="sequenceValidation" class="status" aria-live="polite">Provide FASTA sequences by file upload or paste them into the text box.</div>
+
+    <div class="actions">
+      <button id="runPipelineBtn" class="success" disabled>Run alignment</button>
+    </div>
+
+    <section id="pipelineProgress" class="pipeline-progress" hidden aria-live="polite">
+      <div class="pipeline-progress-head"><h2>Processing</h2><span id="progressPercent">0%</span></div>
+      <div class="progress-track"><div id="progressBar" class="progress-bar"></div></div>
+      <ol class="progress-steps">
+        <li id="stepInput"><span class="progress-dot"></span><div><b>Input validated</b><small>Check identifiers and protein sequences.</small></div></li>
+        <li id="stepMafft"><span class="progress-dot"></span><div><b>MAFFT alignment</b><small>Submit and retrieve the multiple sequence alignment.</small></div></li>
+        <li id="stepFasttree"><span class="progress-dot"></span><div><b>FastTree</b><small>Infer the phylogenetic tree in the browser.</small></div></li>
+        <li id="stepReady"><span class="progress-dot"></span><div><b>Ready for analysis</b><small>Validate generated alignment and Newick tree.</small></div></li>
+      </ol>
+      <div id="pipelineStatus" class="status">Waiting to start.</div>
+    </section>
+
+    <div class="actions upload-footer-actions">
+      <a id="fastaBackBtn" class="button-link secondary" href="upload.html" target="_top">Back</a>
+      <div class="footer-primary-actions">
+        <button id="viewAlignmentBtn" type="button" disabled>View alignment</button>
+        <button id="viewTreeBtn" type="button" disabled>View tree</button>
+        <button id="continueBtn" class="success" disabled>Continue to reference selection</button>
+      </div>
+    </div>
+  </section>
+</div>
+<script src="a2ca-core.js"></script>
+<script src="https://biowasm.com/cdn/v3/aioli.js" referrerpolicy="no-referrer"></script>
+<script src="upload_fasta.js"></script>
+</body>
+</html>

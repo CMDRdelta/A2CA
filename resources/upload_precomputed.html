@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A2CA – Alignment + Tree</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<nav>
+  <a href="upload.html" target="_top">Start</a>
+  <a class="current" href="upload.html" target="_top">Input</a>
+  <div class="steps"><span class="step active">1 Input</span><span class="step">2 Reference</span><span class="step">3 Analysis</span></div>
+</nav>
+<div class="container upload-workflow-container">
+  <section class="card">
+    <div class="page-header-row">
+      <div>
+        <h1>Alignment + Tree</h1>
+        <p class="muted">Provide a multiple sequence alignment (FASTA) and a phylogenetic tree (Newick). Files are checked immediately after selection.</p>
+      </div>
+    </div>
+
+    <div class="upload-step-grid precomputed-two-step">
+      <div class="upload-step-card">
+        <h2>Alignment</h2>
+        <label for="alnFile">Select alignment file</label>
+        <input id="alnFile" type="file" accept=".fas,.fasta,.fa,.faa,.txt">
+        <div id="alignmentStatus" class="status" aria-live="polite">No alignment loaded.</div>
+      </div>
+
+      <div class="upload-step-card">
+        <h2>Tree</h2>
+        <label for="treeFile">Select Newick tree</label>
+        <input id="treeFile" type="file" accept=".nwk,.newick,.tree,.txt" disabled>
+        <div id="treeStatus" class="status" aria-live="polite">Load a valid alignment first.</div>
+      </div>
+    </div>
+
+    <div id="inputSummary" class="upload-summary" hidden></div>
+
+    <div class="actions upload-footer-actions">
+      <a class="button-link secondary" href="upload.html" target="_top">Back</a>
+      <div class="footer-primary-actions">
+        <button id="viewAlignmentBtn" type="button" disabled>View alignment</button>
+        <button id="viewTreeBtn" type="button" disabled>View tree</button>
+        <button id="continueBtn" class="success" disabled>Continue to reference selection</button>
+      </div>
+    </div>
+  </section>
+</div>
+<script src="a2ca-core.js"></script>
+<script src="upload_precomputed.js"></script>
+</body>
+</html>

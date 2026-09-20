@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>A2CA Analysis</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body class="analysis-page">
+<nav>
+  <a href="upload.html" target="_top">Start</a>
+  <a class="current" href="analysis.html">Analysis</a>
+  <div class="steps"><span class="step">1 Input</span><span class="step">2 Reference</span><span class="step active">3 Analysis</span></div>
+</nav>
+<div class="container">
+  <div id="missingData" class="card warn" hidden>
+    <h2>No input data found</h2>
+    <p>Load an alignment and phylogenetic tree on the upload page before starting the analysis.</p>
+    <a class="button-link" href="upload.html" target="_top">Go to input</a>
+  </div>
+
+  <div id="analysisApp" hidden>
+    <section class="grid analysis-grid">
+      <div class="card analysis-controls-card">
+        <h2>Analysis controls</h2>
+        <div id="inputSummary" class="status good small"></div>
+        <div class="audit"><span id="audit">Ready.</span></div>
+
+        <label for="SelectedSequence">Change reference sequence</label>
+        <input id="SelectedSequence" class="sequence-search" type="search" list="SequenceOptions" autocomplete="off" placeholder="Search sequence name…" aria-label="Search and select reference sequence">
+        <datalist id="SequenceOptions"></datalist>
+
+        <div class="residue-section">
+          <div class="residue-section-title">Select amino acids</div>
+          <div class="residue-search-wrap">
+            <input id="residueSearch" class="residue-search" type="search" placeholder="Search residue or number…" autocomplete="off" aria-label="Search reference sequence by residue or number">
+            <button id="clearResidueSearchBtn" type="button" class="mini secondary" aria-label="Clear residue search">Clear</button>
+          </div>
+          <div class="residue-picker">
+            <div class="residue-column">
+              <div class="residue-column-header">Sequence</div>
+              <div id="fullResidueList" class="residue-list" aria-label="Full reference sequence"></div>
+            </div>
+            <div class="residue-column">
+              <div class="residue-column-header residue-selected-header">
+                <span>Selected residues</span>
+                <button id="resetResiduesBtn" type="button" class="mini secondary">Reset</button>
+              </div>
+              <div id="selectedResidueList" class="residue-list selected-residue-list" aria-label="Selected residues"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="parameter-controls">
+          <div class="control-subheading">Use amino acid properties</div>
+          <div class="binary-switch-row">
+            <span class="switch-option">No</span>
+            <label class="switch-control" aria-label="Use amino acid properties">
+              <input id="ParameterViewToggle" type="checkbox">
+              <span class="switch-slider"></span>
+            </label>
+            <span class="switch-option">Yes</span>
+          </div>
+
+          <div id="parameterOptions" class="parameter-options" hidden>
+            <label>Parameter source</label>
+            <div class="binary-switch-row">
+              <span class="switch-option">Default</span>
+              <label class="switch-control neutral-switch" aria-label="Use custom amino acid parameters">
+                <input id="CustomParameterToggle" type="checkbox">
+                <span class="switch-slider"></span>
+              </label>
+              <span class="switch-option">Custom</span>
+            </div>
+
+            <label>Choose calculation mode</label>
+            <div class="binary-switch-row">
+              <span class="switch-option">Average</span>
+              <label class="switch-control neutral-switch" aria-label="Use sum calculation mode">
+                <input id="ParameterCalcToggle" type="checkbox">
+                <span class="switch-slider"></span>
+              </label>
+              <span class="switch-option">Sum</span>
+            </div>
+
+            <label>Choose value representation</label>
+            <div class="binary-switch-row wide-options">
+              <span class="switch-option">Absolute</span>
+              <label class="switch-control neutral-switch" aria-label="Use values relative to reference">
+                <input id="ParameterAbsoluteToggle" type="checkbox">
+                <span class="switch-slider"></span>
+              </label>
+              <span class="switch-option">Relative to reference</span>
+            </div>
+
+            <label for="SelectedParameter">Select parameter</label>
+            <select id="SelectedParameter"></select>
+          </div>
+        </div>
+
+        <hr>
+        <div class="actions vertical-actions">
+          <a class="button-link secondary" href="alignment.html">View alignment</a>
+          <a class="button-link secondary" href="tree.html">View tree</a>
+          <a class="button-link secondary" href="parameters.html">Amino acid parameters</a>
+          <button id="newAnalysisBtn">New analysis</button>
+          <input id="sessionProjectName" class="download-prefix session-project-name" type="text" placeholder="Enter a project name" autocomplete="off" aria-label="Project name used in the saved session filename">
+          <button id="saveSessionBtn" class="success">Save session</button>
+        </div>
+      </div>
+
+      <div class="analysis-right-column">
+        <details class="analysis-module phylogeny-module" open>
+          <summary>
+            <span>Phylogenetic conservation</span>
+            <span class="module-summary-note">Conservation patterns and amino acid properties in phylogenetic context</span>
+          </summary>
+          <div class="analysis-module-body">
+            <div id="treePlot" class="plotbox tree-plotbox"></div>
+
+            <div class="download-section">
+              <h2>Download as...</h2>
+              <input id="downloadPrefix" class="download-prefix" type="text" placeholder="Enter a project name" autocomplete="off" aria-label="Project name used in download filenames">
+              <div class="download-controls">
+                <div class="download-option">
+                  <span class="download-label">Image</span>
+                  <div class="binary-switch-row compact-switch-row">
+                    <span class="switch-option">SVG</span>
+                    <label class="switch-control neutral-switch" aria-label="Image download format">
+                      <input id="ImageFormatToggle" type="checkbox">
+                      <span class="switch-slider"></span>
+                    </label>
+                    <span class="switch-option">PNG</span>
+                  </div>
+                  <button id="downloadImageBtn">Image</button>
+                </div>
+                <div class="download-option">
+                  <span class="download-label">Table</span>
+                  <div class="binary-switch-row compact-switch-row">
+                    <span class="switch-option">TXT</span>
+                    <label class="switch-control neutral-switch" aria-label="Table download format">
+                      <input id="TableFormatToggle" type="checkbox">
+                      <span class="switch-slider"></span>
+                    </label>
+                    <span class="switch-option">CSV</span>
+                  </div>
+                  <button id="downloadTableBtn">Table</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details id="structureModule" class="analysis-module structure-module">
+          <summary>
+            <span>Structure-based residue mapping</span>
+            <span class="module-summary-note">Inspect, select and transfer residues in the reference structure</span>
+          </summary>
+          <div class="analysis-module-body">
+            <div id="noStructurePanel" class="structure-empty" hidden>
+              <a class="button-link" href="reference.html?from=analysis">Upload structure</a>
+            </div>
+
+            <div id="structureViewerPanel" class="structure-viewer-layout" hidden>
+              <div class="structure-viewer-wrap">
+                <div id="structureViewer" class="structure-viewer" aria-label="Interactive protein structure viewer"></div>
+                <div id="structureViewerStatus" class="status small">Preparing structure viewer…</div>
+              </div>
+              <aside class="structure-controls-panel">
+                <h3>Structure display</h3>
+                <div class="structure-control-group">
+                  <div class="control-subheading">Chains</div>
+                  <div id="structureChainToggles" class="structure-chain-toggles"></div>
+                  <div class="actions compact-actions structure-chain-actions">
+                    <button id="showReferenceChainBtn" type="button" class="mini secondary">Reference only</button>
+                    <button id="showAllChainsBtn" type="button" class="mini secondary">Show all</button>
+                  </div>
+                </div>
+
+                <div class="structure-control-group">
+                  <div class="control-subheading">Representation</div>
+                  <div class="binary-switch-row">
+                    <span class="switch-option">Cartoon</span>
+                    <label class="switch-control neutral-switch" aria-label="Structure representation">
+                      <input id="StructureStyleToggle" type="checkbox">
+                      <span class="switch-slider"></span>
+                    </label>
+                    <span class="switch-option">Stick</span>
+                  </div>
+                </div>
+
+                <div class="structure-legend structure-legend-stack">
+                  <span><i class="structure-legend-swatch"></i> Analysis residues</span>
+                  <span><i class="structure-legend-swatch structure-picked-swatch"></i> Structure selection</span>
+                  <span><i class="structure-legend-swatch ligand-swatch"></i> Ligands</span>
+                </div>
+                <p id="structureMappingInfo" class="muted small"></p>
+
+                <div class="structure-control-group structure-selection-group">
+                  <div class="control-subheading">Selected in structure</div>
+                  <div id="structureSelectedList" class="structure-selected-list"><span class="muted small">Click a protein residue in the structure to select it.</span></div>
+                  <div class="actions compact-actions structure-list-actions">
+                    <button id="resetStructureResiduesBtn" type="button" class="mini secondary">Reset selection</button>
+                  </div>
+                  <div class="sphere-selection-row">
+                    <label for="structureSphereRadius">Sphere radius (Å)</label>
+                    <div class="sphere-selection-controls">
+                      <input id="structureSphereRadius" class="rounded-input" type="number" min="1" max="20" step="0.5" value="5">
+                      <button id="selectSphereBtn" type="button" class="mini secondary">Select sphere</button>
+                    </div>
+                  </div>
+                  <div class="actions compact-actions structure-transfer-actions">
+                    <button id="addStructureResiduesBtn" type="button">Add</button>
+                    <button id="replaceStructureResiduesBtn" type="button" class="secondary">Replace</button>
+                  </div>
+                </div>
+              </aside>
+            </div>
+          </div>
+        </details>
+
+        <details id="correlationModule" class="analysis-module correlation-module">
+          <summary>
+            <span>Pairwise coevolution analysis</span>
+            <span class="module-summary-note">Similarity-aware, property-based and phylogeny-adjusted residue coupling</span>
+          </summary>
+          <div class="analysis-module-body">
+            <div class="correlation-selector-grid">
+              <div>
+                <label for="CorrelationResidueA">Residue 1</label>
+                <select id="CorrelationResidueA" class="rounded-select"></select>
+              </div>
+              <div>
+                <label for="CorrelationResidueB">Residue 2</label>
+                <select id="CorrelationResidueB" class="rounded-select"></select>
+              </div>
+            </div>
+            <div id="correlationStatus" class="status small correlation-status">Select at least two residues in Analysis Control to calculate coevolution.</div>
+            <div class="correlation-plot-grid" id="correlationPlotGrid">
+              <section class="correlation-plot-card">
+                <div class="correlation-plot-head">
+                  <div>
+                    <h3>Similarity-based coevolution</h3>
+                    <p>Residue-pair enrichment with BLOSUM62 substitution correlation.</p>
+                  </div>
+                  <span id="similarityScoreBadge" class="correlation-score-badge">r = –</span>
+                </div>
+                <div id="similarityHeatmap" class="correlation-plot"></div>
+              </section>
+
+              <section class="correlation-plot-card">
+                <div class="correlation-plot-head">
+                  <div>
+                    <h3>Amino-acid property coupling</h3>
+                    <p id="parameterPlotSubtitle">Enable amino acid properties to visualize the selected parameter.</p>
+                  </div>
+                  <span id="parameterScoreBadge" class="correlation-score-badge">ρ = –</span>
+                </div>
+                <div id="parameterBubblePlot" class="correlation-plot"></div>
+              </section>
+
+              <section class="correlation-plot-card">
+                <div class="correlation-plot-head">
+                  <div>
+                    <h3>Phylogeny-adjusted coevolution</h3>
+                    <p>Phylogenetically weighted residue-pair enrichment and distance-adjusted substitution correlation.</p>
+                  </div>
+                  <span id="phyloScoreBadge" class="correlation-score-badge">r = –</span>
+                </div>
+                <div id="phyloHeatmap" class="correlation-plot"></div>
+              </section>
+
+              <section class="correlation-plot-card correlation-tree-card">
+                <div class="correlation-plot-head">
+                  <div>
+                    <h3>Inferred substitutions on phylogeny</h3>
+                    <p>Parsimony reconstruction of changes at the two selected positions.</p>
+                  </div>
+                </div>
+                <div id="correlationChangeTree" class="correlation-plot correlation-tree-plot"></div>
+                <div class="correlation-tree-legend" aria-label="Tree change legend">
+                  <span><i class="legend-line neutral"></i>Neither</span>
+                  <span><i class="legend-line residue-a"></i>Residue 1</span>
+                  <span><i class="legend-line residue-b"></i>Residue 2</span>
+                  <span><i class="legend-line both"></i>Both</span>
+                </div>
+              </section>
+            </div>
+
+            <div class="download-section correlation-download-section">
+              <h2>Download as...</h2>
+              <input id="correlationDownloadPrefix" class="download-prefix" type="text" placeholder="Enter a project name" autocomplete="off" aria-label="Project name used in coevolution download filenames">
+              <div class="correlation-download-target">
+                <select id="CorrelationDownloadTarget" class="rounded-select" aria-label="Select coevolution plot to download">
+                  <option value="all">All plots</option>
+                  <option value="similarity">Similarity-based coevolution</option>
+                  <option value="parameter">Amino-acid property coupling</option>
+                  <option value="phylo">Phylogeny-adjusted coevolution</option>
+                  <option value="tree">Inferred substitutions on phylogeny</option>
+                </select>
+              </div>
+              <div class="download-controls">
+                <div class="download-option">
+                  <span class="download-label">Image</span>
+                  <div class="binary-switch-row compact-switch-row">
+                    <span class="switch-option">SVG</span>
+                    <label class="switch-control neutral-switch" aria-label="Coevolution image download format">
+                      <input id="CorrelationImageFormatToggle" type="checkbox">
+                      <span class="switch-slider"></span>
+                    </label>
+                    <span class="switch-option">PNG</span>
+                  </div>
+                  <button id="downloadCorrelationImageBtn">Image</button>
+                </div>
+                <div class="download-option">
+                  <span class="download-label">Table</span>
+                  <div class="binary-switch-row compact-switch-row">
+                    <span class="switch-option">TXT</span>
+                    <label class="switch-control neutral-switch" aria-label="Coevolution table download format">
+                      <input id="CorrelationTableFormatToggle" type="checkbox">
+                      <span class="switch-slider"></span>
+                    </label>
+                    <span class="switch-option">CSV</span>
+                  </div>
+                  <button id="downloadCorrelationTableBtn">Table</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </details>
+
+        <details id="customizationModule" class="analysis-module customization-card">
+          <summary><span>Customization</span></summary>
+          <div class="analysis-module-body">
+          <div class="customization-grid">
+            <section class="customization-column">
+              <h3>Amino acid colors</h3>
+              <div id="colorInputs" class="colors compact-colors"></div>
+            </section>
+            <section class="customization-column">
+              <h3>Coevolution plot colors</h3>
+              <div id="correlationColorInputs" class="plot-color-grid"></div>
+            </section>
+          </div>
+          <div class="actions compact-actions">
+            <button id="saveColorsBtn">Save colors</button>
+            <button id="resetColorsBtn" class="secondary">Reset colors</button>
+          </div>
+          </div>
+        </details>
+      </div>
+    </section>
+  </div>
+</div>
+<script src="a2ca-core.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.5.5/3Dmol-min.js" referrerpolicy="no-referrer"></script>
+<script src="analysis.js"></script>
+</body>
+</html>
