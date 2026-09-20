@@ -1,0 +1,33 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.venv/
+venv/
+
+# A2CA user/session and local output
+*.a2ca
+*.log
+tmp/
+temp/
+output/
+
+# Environment / credentials
+.env
+.env.*
+!.env.example
+
+# Editors / operating systems
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Test / coverage artifacts
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Archives built for distribution
+*.zip
