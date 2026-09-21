@@ -69,6 +69,7 @@ try{
 
   await frame.fill('#sessionProjectName','Project Alpha');
   await frame.fill('#downloadPrefix','tree fig');
+  await frame.click('#correlationModule > summary');
   await frame.fill('#correlationDownloadPrefix','corr fig');
   if(await frame.inputValue('#downloadProjectName')!=='Project Alpha')throw new Error('Tree download project field did not mirror the session project name.');
   if(await frame.inputValue('#correlationDownloadProjectName')!=='Project Alpha')throw new Error('Correlation download project field did not mirror the session project name.');
