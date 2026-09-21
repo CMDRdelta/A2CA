@@ -69,6 +69,8 @@ def local_target(base: Path, ref: str) -> Path | None:
     path = parts.path
     if not path or path == "about:blank":
         return None
+    if path.startswith("/"):
+        return (ROOT / path.lstrip("/")).resolve()
     return (base / path).resolve()
 
 
