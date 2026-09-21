@@ -606,6 +606,20 @@ class A2CAHandler(SimpleHTTPRequestHandler):
             self.wfile.write(payload)
             return
 
+        if parsed.path == "/LICENSE":
+            license_path = ROOT / "LICENSE"
+            try:
+                payload = license_path.read_bytes()
+            except OSError:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
+            self.send_response(HTTPStatus.OK)
+            self.send_header("Content-Type", "text/plain; charset=utf-8")
+            self.send_header("Content-Length", str(len(payload)))
+            self.end_headers()
+            self.wfile.write(payload)
+            return
+
         if parsed.path == "/":
             self.send_response(HTTPStatus.FOUND)
             self.send_header("Location", "/resources/upload.html")
