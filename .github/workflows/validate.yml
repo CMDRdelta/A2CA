@@ -95,7 +95,9 @@ jobs:
           import json
           with open('/tmp/a2ca-meta.json', encoding='utf-8') as handle:
               meta = json.load(handle)
-          assert meta.get('version') == '2.0.43', meta
+          with open('VERSION', encoding='utf-8') as handle:
+              expected_version = handle.read().strip()
+          assert meta.get('version') == expected_version, (expected_version, meta)
           PY
 
           curl --fail --silent -H 'X-A2CA-Request: web' http://127.0.0.1:8765/api/status -o /tmp/a2ca-status.json
