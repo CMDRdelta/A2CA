@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>A2CA Analysis</title>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2.0.44">
 </head>
 <body class="analysis-page">
 <nav>
@@ -120,7 +120,12 @@
 
             <div class="download-section">
               <h2>Download as...</h2>
-              <input id="downloadPrefix" class="download-prefix" type="text" placeholder="Enter a project name" autocomplete="off" aria-label="Project name used in download filenames">
+              <div class="download-name-row">
+                <label for="downloadProjectName">Project</label>
+                <input id="downloadProjectName" class="download-prefix download-project-name" type="text" readonly aria-label="Project name used in download filenames">
+                <label for="downloadPrefix">File name</label>
+                <input id="downloadPrefix" class="download-prefix download-file-name" type="text" placeholder="Enter a file name" autocomplete="off" aria-label="Additional file name used in download filenames">
+              </div>
               <div class="download-controls">
                 <div class="download-option">
                   <span class="download-label">Image</span>
@@ -289,7 +294,12 @@
 
             <div class="download-section correlation-download-section">
               <h2>Download as...</h2>
-              <input id="correlationDownloadPrefix" class="download-prefix" type="text" placeholder="Enter a project name" autocomplete="off" aria-label="Project name used in coevolution download filenames">
+              <div class="download-name-row">
+                <label for="correlationDownloadProjectName">Project</label>
+                <input id="correlationDownloadProjectName" class="download-prefix download-project-name" type="text" readonly aria-label="Project name used in coevolution download filenames">
+                <label for="correlationDownloadPrefix">File name</label>
+                <input id="correlationDownloadPrefix" class="download-prefix download-file-name" type="text" placeholder="Enter a file name" autocomplete="off" aria-label="Additional file name used in coevolution download filenames">
+              </div>
               <div class="correlation-download-target">
                 <select id="CorrelationDownloadTarget" class="rounded-select" aria-label="Select coevolution plot to download">
                   <option value="all">All plots</option>
@@ -352,9 +362,9 @@
     </section>
   </div>
 </div>
-<script src="a2ca-core.js"></script>
-<script src="a2ca-analysis-science.js"></script>
+<script src="a2ca-core.js?v=2.0.44"></script>
+<script src="a2ca-analysis-science.js?v=2.0.44"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/3Dmol/2.5.5/3Dmol-min.js" referrerpolicy="no-referrer"></script>
-<script src="analysis.js"></script>
+<script src="analysis.js?v=2.0.44"></script>
 </body>
 </html>
