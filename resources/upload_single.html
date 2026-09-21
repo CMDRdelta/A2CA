@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>A2CA – NCBI BLAST</title>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2.0.44">
 </head>
 <body>
 <nav>
@@ -49,12 +49,6 @@
       <h2>or enter the query</h2>
       <label for="queryText">Single FASTA record or raw protein sequence</label>
       <textarea id="queryText" class="fasta-textarea blast-query-textarea" spellcheck="false" placeholder=">Query_protein&#10;MST...&#10;&#10;or paste a raw amino-acid sequence"></textarea>
-    </div>
-
-    <div class="pipeline-settings">
-      <label for="ncbiEmail">Contact email <span class="required-note">required</span></label>
-      <input id="ncbiEmail" type="email" class="rounded-input" placeholder="name@example.org" autocomplete="email" required>
-      <p class="small muted">Required for NCBI sequence retrieval and identification of programmatic requests.</p>
     </div>
 
     <div id="queryValidation" class="status" aria-live="polite">Provide one protein sequence or structure file, or fetch a query by NCBI/PDB identifier.</div>
@@ -159,7 +153,7 @@
     </div>
   </section>
 </div>
-<script src="a2ca-core.js"></script>
-<script src="upload_single.js"></script>
+<script src="a2ca-core.js?v=2.0.44"></script>
+<script src="upload_single.js?v=2.0.44"></script>
 </body>
 </html>
