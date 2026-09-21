@@ -11,7 +11,7 @@ import json
 import re
 import subprocess
 import sys
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 ROOT = Path(__file__).resolve().parent.parent
 RES = ROOT / "resources"
@@ -127,9 +127,26 @@ def check_version(errors: list[str]) -> None:
         package_version = None
     if package_version != version:
         errors.append(f"package.json version {package_version!r} does not match VERSION {version}")
+    try:
+        package_license = json.loads((ROOT / "package.json").read_text(encoding="utf-8")).get("license")
+    except (OSError, json.JSONDecodeError):
+        package_license = None
+    if package_license != "PolyForm-Noncommercial-1.0.0":
+        errors.append("package.json does not declare PolyForm-Noncommercial-1.0.0")
     citation = (ROOT / "CITATION.cff").read_text(encoding="utf-8")
     if f"version: {version}" not in citation:
         errors.append("CITATION.cff version does not match VERSION")
+    if 'license: "PolyForm-Noncommercial-1.0.0"' not in citation:
+        errors.append("CITATION.cff does not declare the PolyForm noncommercial license")
+    license_path = ROOT / "LICENSE"
+    if not license_path.exists():
+        errors.append("LICENSE is missing")
+    else:
+        license_text = license_path.read_text(encoding="utf-8")
+        if "PolyForm Noncommercial License 1.0.0" not in license_text:
+            errors.append("LICENSE is not PolyForm Noncommercial 1.0.0")
+        if "Required Notice: Copyright © 2026 Daniel Eggerichs" not in license_text:
+            errors.append("LICENSE is missing the A2CA copyright Required Notice")
     for file in ROOT.rglob("*"):
         if is_ignored(file):
             continue
@@ -173,6 +190,47 @@ def check_javascript(errors: list[str]) -> None:
             errors.append(f"JavaScript syntax error in {file.relative_to(ROOT)}:\n{proc.stderr.strip()}")
 
 
+
+def check_release_ui(errors: list[str]) -> None:
+    version = (ROOT / "VERSION").read_text(encoding="utf-8").strip()
+    static_suffixes = {".css", ".js", ".png", ".jpg", ".jpeg", ".svg", ".webp"}
+    for file in sorted(p for p in RES.glob("*.html") if not is_ignored(p)):
+        parser = HtmlRefs(file)
+        parser.feed(file.read_text(encoding="utf-8"))
+        for ref in parser.refs:
+            parts = urlsplit(ref.strip())
+            if parts.scheme or parts.netloc:
+                continue
+            if Path(parts.path).suffix.lower() not in static_suffixes:
+                continue
+            if parse_qs(parts.query).get("v") != [version]:
+                errors.append(f"{file.relative_to(ROOT)} static asset is not cache-busted with v={version}: {ref}")
+
+    upload = (RES / "upload.html").read_text(encoding="utf-8")
+    if "Open Beta" in upload:
+        errors.append("upload.html still contains the Open Beta label")
+    if "Data privacy" not in upload or "PolyForm Noncommercial License 1.0.0" not in upload:
+        errors.append("upload.html is missing the 2.0.44 privacy or license notice")
+    if "if(input)input.value=''" not in upload:
+        errors.append("upload.html does not clear the imported session file on New analysis")
+
+    blast_html = (RES / "upload_single.html").read_text(encoding="utf-8")
+    blast_js = (RES / "upload_single.js").read_text(encoding="utf-8")
+    if "ncbiEmail" in blast_html or "ncbiEmail" in blast_js:
+        errors.append("single-sequence BLAST workflow still depends on a user email field")
+    if "const NCBI_EMAIL='user@a2ca.app';" not in blast_js:
+        errors.append("single-sequence BLAST workflow does not use the fixed A2CA NCBI contact email")
+
+    analysis_html = (RES / "analysis.html").read_text(encoding="utf-8")
+    analysis_js = (RES / "analysis.js").read_text(encoding="utf-8")
+    for elem_id in ("downloadProjectName", "correlationDownloadProjectName", "downloadPrefix", "correlationDownloadPrefix", "sessionProjectName"):
+        if f'id="{elem_id}"' not in analysis_html:
+            errors.append(f"analysis.html is missing {elem_id}")
+    if "mirrorProjectName" in analysis_js:
+        errors.append("analysis.js still bidirectionally links project and file-name fields")
+    expected_naming = "${downloadTimestamp()}_${projectDownloadName()}_${downloadFileName(fileInputId)}_"
+    if expected_naming not in analysis_js:
+        errors.append("analysis.js does not use the date_time_project_fileName_plotName export convention")
 
 def check_deployment(errors: list[str]) -> None:
     main_py = ROOT / "main.py"
@@ -235,6 +293,7 @@ def main() -> int:
     check_css(errors)
     check_version(errors)
     check_generated_files(errors)
+    check_release_ui(errors)
     check_deployment(errors)
     check_python(errors)
     check_javascript(errors)
