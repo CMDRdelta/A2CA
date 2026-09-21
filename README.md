@@ -4,7 +4,7 @@
 
 **A2CA** is a web application for examining amino-acid variation in a phylogenetic and structural context. It combines multiple-sequence alignments, phylogenetic trees, physicochemical amino-acid properties, optional protein structures, and pairwise coevolution analyses in one interactive workflow.
 
-This repository contains the **hosted web edition of A2CA 2.0.43**, prepared for deployment on Railway.
+This repository contains the **hosted web edition of A2CA 2.0.44**, prepared for deployment on Railway.
 
 ## Features
 
@@ -78,6 +78,7 @@ A2CA/
 ├── README.md
 ├── VERSION
 ├── CITATION.cff
+├── LICENSE                    # PolyForm Noncommercial 1.0.0
 ├── SECURITY.md
 ├── CONTRIBUTING.md
 ├── CHANGELOG.md
@@ -124,11 +125,11 @@ External services are subject to their own availability, terms, and usage limits
 
 ## Data and privacy
 
-A2CA does not intentionally save uploaded sequences, structures, or `.a2ca` sessions on the web server. Analysis state is maintained in the user's browser and can be exported explicitly by the user.
+A2CA does not intentionally persist uploaded sequences, structures, alignments, trees, or `.a2ca` session files. Most analysis state is handled locally in the user's browser and can be exported explicitly by the user.
 
-When the relevant workflow is used, user-provided data can be forwarded to external services, including NCBI and RCSB PDB. FASTA sequences sent to the alignment/tree workflow are processed inside the A2CA server container by MAFFT and FastTree rather than forwarded to a third-party alignment service. Deployments intended for public use should provide an appropriate privacy/data-processing notice.
+In the single-sequence BLAST workflow, only the selected protein query sequence is forwarded to NCBI BLAST; an uploaded structure file itself is not sent to NCBI. Identifiers entered for NCBI Protein or RCSB PDB retrieval are sent to the corresponding external service. Unaligned FASTA submitted through the FASTA workflow is sent to the A2CA Railway service so MAFFT and FastTree can run server-side, but those sequences are not forwarded to a third-party alignment or tree service.
 
-The public proxy endpoints are parameter-restricted, same-origin protected, size limited, and rate limited. NCBI BLAST requests are additionally serialized conservatively so the hosted service does not contact the remote BLAST endpoint too frequently.
+The public proxy and compute endpoints are parameter-restricted, same-origin protected, size limited, and rate limited. NCBI BLAST requests are additionally serialized conservatively so the hosted service does not contact the remote BLAST endpoint too frequently.
 
 ## Validation
 
@@ -150,13 +151,15 @@ A machine-readable citation is provided in [`CITATION.cff`](CITATION.cff).
 
 ## Versioning
 
-The application version is stored in [`VERSION`](VERSION). Git tags for releases should use the form `v2.0.43`.
+The application version is stored in [`VERSION`](VERSION). Git tags for releases should use the form `v2.0.44`.
 
 ## License and reuse
 
-Copyright © 2026 Daniel Eggerichs.
+Copyright © 2026 Daniel Eggerichs. Copyright and ownership of A2CA remain with Daniel Eggerichs.
 
-A2CA may currently be freely used for research purposes. A conventional OSI-approved open-source license has not yet been selected. Before broad public redistribution or accepting external contributions, the reuse, modification, redistribution, and commercial-use terms should be formalized in a dedicated `LICENSE` file.
+A2CA is licensed under the [PolyForm Noncommercial License 1.0.0](LICENSE) (SPDX: `PolyForm-Noncommercial-1.0.0`). The license permits use, modification, and redistribution for noncommercial purposes, including research and use by educational and public research organizations. Commercial use is not licensed and requires separate permission from the copyright holder.
+
+This is a source-available noncommercial software license rather than an OSI-approved open-source license.
 
 ## Security
 
