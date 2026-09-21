@@ -5,6 +5,12 @@ const browser=await chromium.launch({headless:true});
 try{
   const page=await browser.newPage();
 
+  // Public license route must expose the repository LICENSE directly.
+  const licenseResponse=await page.request.get(`${baseUrl}/LICENSE`);
+  if(!licenseResponse.ok())throw new Error(`/LICENSE returned HTTP ${licenseResponse.status()}`);
+  const licenseText=await licenseResponse.text();
+  if(!licenseText.includes('PolyForm Noncommercial License 1.0.0'))throw new Error('/LICENSE did not return the PolyForm license text.');
+
   // Landing page: current version copy and cache-busted first-party assets.
   await page.goto(`${baseUrl}/resources/upload.html?new=1`,{waitUntil:'domcontentloaded'});
   await page.waitForFunction(()=>document.querySelector('[data-a2ca-version]')?.textContent==='2.0.44');
@@ -14,8 +20,10 @@ try{
     if(!(await page.$(selector)))throw new Error(`Missing cache-busted landing asset: ${selector}`);
   }
 
-  // BLAST page: no user email field and a valid protein query enables the run button.
+  // BLAST page: no user email field, common footer is present, and a valid protein query enables the run button.
   await page.goto(`${baseUrl}/resources/upload_single.html`,{waitUntil:'domcontentloaded'});
+  if(!(await page.$('footer[aria-label="A2CA version and usage information"]')))throw new Error('Common A2CA footer is missing from upload_single.html.');
+  if((await page.getAttribute('footer a[href="/LICENSE"]','href'))!=='/LICENSE')throw new Error('Common footer does not link to /LICENSE.');
   if(await page.$('#ncbiEmail'))throw new Error('The removed NCBI email field is still present.');
   await page.fill('#queryText','MSTNPKPQRKTKRNTNRRPQDVKFPGGGQIVGGVYLLPRRGPRLG');
   await page.waitForFunction(()=>!document.getElementById('runBlastBtn')?.disabled);

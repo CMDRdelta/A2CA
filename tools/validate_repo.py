@@ -69,6 +69,8 @@ def local_target(base: Path, ref: str) -> Path | None:
     path = parts.path
     if not path or path == "about:blank":
         return None
+    if path.startswith("/"):
+        return (ROOT / path.lstrip("/")).resolve()
     return (base / path).resolve()
 
 
@@ -213,6 +215,23 @@ def check_release_ui(errors: list[str]) -> None:
         errors.append("upload.html is missing the 2.0.44 privacy or license notice")
     if "if(input)input.value=''" not in upload:
         errors.append("upload.html does not clear the imported session file on New analysis")
+
+    footer_marker = 'aria-label="A2CA version and usage information"'
+    license_link = 'href="/LICENSE"'
+    for file in sorted(p for p in RES.glob("*.html") if not is_ignored(p)):
+        page = file.read_text(encoding="utf-8")
+        if footer_marker not in page:
+            errors.append(f"{file.relative_to(ROOT)} is missing the common A2CA footer")
+        if "Last modified: 21 September 2026" not in page:
+            errors.append(f"{file.relative_to(ROOT)} footer is missing the last-modified date")
+        if "data-a2ca-version" not in page:
+            errors.append(f"{file.relative_to(ROOT)} footer is missing the version label")
+        if "Copyright &copy; 2026 Daniel Eggerichs" not in page or license_link not in page:
+            errors.append(f"{file.relative_to(ROOT)} footer is missing the copyright/license statement")
+
+    main_py = (ROOT / "main.py").read_text(encoding="utf-8")
+    if 'parsed.path == "/LICENSE"' not in main_py or 'ROOT / "LICENSE"' not in main_py:
+        errors.append("main.py does not publish the root LICENSE at /LICENSE")
 
     blast_html = (RES / "upload_single.html").read_text(encoding="utf-8")
     blast_js = (RES / "upload_single.js").read_text(encoding="utf-8")

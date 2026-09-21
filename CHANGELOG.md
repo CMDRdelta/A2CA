@@ -9,6 +9,7 @@
 - Fixed New analysis so returning from an imported session clears the selected session file and restores a fresh start page.
 - Decoupled project naming from export file-name fields and changed plot/table export names to `date_time_project_fileName_plotName`.
 - Added validation coverage for cache-busted assets, licensing metadata, hidden BLAST contact email behavior, and the 2.0.44 landing page.
+- Fixed the hosted `/LICENSE` route and added the version/copyright/license footer to every application page.
 
 ## 2.0.43 – 2026-09-20
 
