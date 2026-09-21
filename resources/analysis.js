@@ -89,9 +89,11 @@
 
     $('analysisApp').hidden=false;
     $('inputSummary').textContent=`Alignment: ${session.alignmentFileName||'loaded file'} | Tree: ${session.treeFileName||'loaded file'} | ${Object.keys(STATE.alignment).length} sequences`;
-    if($('downloadPrefix'))$('downloadPrefix').value=STATE.projectName;
-    if($('correlationDownloadPrefix'))$('correlationDownloadPrefix').value=STATE.projectName;
     if($('sessionProjectName'))$('sessionProjectName').value=STATE.projectName;
+    if($('downloadPrefix'))$('downloadPrefix').value='';
+    if($('correlationDownloadPrefix'))$('correlationDownloadPrefix').value='';
+    if($('downloadProjectName'))$('downloadProjectName').value=STATE.projectName;
+    if($('correlationDownloadProjectName'))$('correlationDownloadProjectName').value=STATE.projectName;
 
     function persist(){
       const data={
@@ -1353,10 +1355,9 @@
       img.onerror=()=>{URL.revokeObjectURL(url);alert('PNG export failed in this browser. Please use SVG export.');};img.src=url;
     }
 
-    function correlationDownloadPrefix(){
-      const raw=String($('correlationDownloadPrefix').value||$('downloadPrefix').value||'').trim();
-      const clean=raw.replace(/[^A-Za-z0-9._-]+/g,'_').replace(/^_+|_+$/g,'');
-      return clean||'project';
+    function cleanFilenamePart(value,fallback='file'){
+      const clean=String(value||'').trim().replace(/[^A-Za-z0-9._-]+/g,'_').replace(/^_+|_+$/g,'');
+      return clean||fallback;
     }
 
     function downloadTimestamp(){
@@ -1364,44 +1365,39 @@
       const pad=n=>String(n).padStart(2,'0');
       return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}_${pad(d.getHours())}-${pad(d.getMinutes())}-${pad(d.getSeconds())}`;
     }
-    function downloadPrefix(){
-      const raw=String($('downloadPrefix').value||'').trim();
-      const clean=raw.replace(/[^A-Za-z0-9._-]+/g,'_').replace(/^_+|_+$/g,'');
-      return clean||'project';
+    function projectDownloadName(){return cleanFilenamePart(STATE.projectName,'project');}
+    function downloadFileName(id){return cleanFilenamePart($(id)?.value,'file');}
+    function downloadBase(fileInputId,plotName){
+      return `${downloadTimestamp()}_${projectDownloadName()}_${downloadFileName(fileInputId)}_${cleanFilenamePart(plotName,'plot')}`;
     }
-    function downloadBase(kind){return `${downloadTimestamp()}_A2CA_${downloadPrefix()}_${kind}`;}
-
-    // Keep all project-name fields synchronized so every export and the saved
-    // session use one consistent project prefix.
-    function mirrorProjectName(source){
-      if(!source)return;
-      const value=source.value;
-      for(const id of ['downloadPrefix','correlationDownloadPrefix','sessionProjectName']){
-        const el=$(id);
-        if(el&&el!==source)el.value=value;
-      }
-      STATE.projectName=value;
-      persist();
+    function sessionDownloadBase(){return `${downloadTimestamp()}_${projectDownloadName()}_session`;}
+    function updateProjectNameDisplays(){
+      const value=String(STATE.projectName||'');
+      if($('downloadProjectName'))$('downloadProjectName').value=value;
+      if($('correlationDownloadProjectName'))$('correlationDownloadProjectName').value=value;
     }
-    for(const id of ['downloadPrefix','correlationDownloadPrefix','sessionProjectName']){
-      const el=$(id);
-      if(el)el.addEventListener('input',()=>mirrorProjectName(el));
+    if($('sessionProjectName')){
+      $('sessionProjectName').addEventListener('input',event=>{
+        STATE.projectName=event.target.value;
+        updateProjectNameDisplays();
+        persist();
+      });
     }
 
     $('downloadTableBtn').onclick=()=>{
       const format=$('TableFormatToggle').checked?'csv':'txt';
       const mime=format==='csv'?'text/csv;charset=utf-8':'text/plain;charset=utf-8';
-      A2CA.downloadText(`${downloadBase('table')}.${format}`,mime,tableToDelimited(format));
+      A2CA.downloadText(`${downloadBase('downloadPrefix','table')}.${format}`,mime,tableToDelimited(format));
     };
     $('downloadImageBtn').onclick=()=>{
       const format=$('ImageFormatToggle').checked?'png':'svg';
-      const filename=`${downloadBase('tree')}.${format}`;
+      const filename=`${downloadBase('downloadPrefix','tree')}.${format}`;
       if(format==='png')A2CA.downloadPng('#treePlot',filename);
       else A2CA.downloadSvg('#treePlot',filename);
     };
     $('downloadCorrelationImageBtn').onclick=()=>{
       const target=$('CorrelationDownloadTarget').value,format=$('CorrelationImageFormatToggle').checked?'png':'svg';
-      const base=`${downloadTimestamp()}_A2CA_${correlationDownloadPrefix()}_coevolution_${correlationTargetName(target)}`;
+      const base=downloadBase('correlationDownloadPrefix',`coevolution_${correlationTargetName(target)}`);
       if(target==='all'){
         const svgText=combinedCorrelationSvg();
         if(format==='png')downloadPngText(svgText,`${base}.png`);else downloadSvgText(svgText,`${base}.svg`);
@@ -1416,14 +1412,14 @@
       const rows=correlationRawRows(target);
       if(!rows.length){alert(target==='parameter'?'Enable amino acid properties to export parameter data.':'No raw data are available for the selected plot.');return;}
       const mime=format==='csv'?'text/csv;charset=utf-8':'text/plain;charset=utf-8';
-      const base=`${downloadTimestamp()}_A2CA_${correlationDownloadPrefix()}_coevolution_${correlationTargetName(target)}`;
+      const base=downloadBase('correlationDownloadPrefix',`coevolution_${correlationTargetName(target)}`);
       A2CA.downloadText(`${base}.${format}`,mime,rowsToDelimited(rows,format));
     };
     $('saveSessionBtn').onclick=async()=>{
       persist();
       try{
         const text=A2CA.serializeSessionFile(session,await A2CA.getAppVersion());
-        A2CA.downloadText(`${downloadBase('session')}.a2ca`,'application/json;charset=utf-8',text);
+        A2CA.downloadText(`${sessionDownloadBase()}.a2ca`,'application/json;charset=utf-8',text);
         STATE.audit='Session file saved.';
         $('audit').textContent=STATE.audit;
       }catch(err){
