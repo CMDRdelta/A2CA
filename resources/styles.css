@@ -471,4 +471,20 @@ button.blast-stop-button:hover{background:#b96f22}
 .blast-structure-chain-controls{margin-top:16px}
 @media(max-width:760px){.blast-fetch-row{grid-template-columns:1fr}.blast-fetch-row .blast-fetch-button{min-height:42px}}
 
-/* Hosted web release 2.0.43 */
+/* Hosted web release 2.0.44 */
+.download-name-row{
+  display:grid;
+  grid-template-columns:auto minmax(140px,1fr) auto minmax(160px,1fr);
+  gap:8px 10px;
+  align-items:center;
+  max-width:820px;
+  margin:0 0 12px;
+}
+.download-name-row label{margin:0;color:#526171;font-size:13px;font-weight:700;white-space:nowrap}
+.download-name-row .download-prefix{width:100%;max-width:none;margin:0;box-sizing:border-box}
+.download-project-name[readonly]{background:#f2f5f8;color:#526171;cursor:default}
+.download-project-name[readonly]:focus{border-color:#cbd5df;box-shadow:none}
+@media(max-width:760px){
+  .download-name-row{grid-template-columns:1fr}
+  .download-name-row label{margin-top:4px}
+}
