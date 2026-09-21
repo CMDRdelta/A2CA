@@ -1,5 +1,15 @@
 # Changelog
 
+## 2.0.44 – 2026-09-21
+
+- Added versioned cache-busting query strings to local CSS, JavaScript, and image assets.
+- Added the PolyForm Noncommercial License 1.0.0 and documented noncommercial use, redistribution, modification, and retained copyright ownership.
+- Updated the landing page version, licensing statement, and data-privacy information.
+- Removed the NCBI contact-email field from the BLAST workflow and now submit the application contact address `user@a2ca.app` automatically.
+- Fixed New analysis so returning from an imported session clears the selected session file and restores a fresh start page.
+- Decoupled project naming from export file-name fields and changed plot/table export names to `date_time_project_fileName_plotName`.
+- Added validation coverage for cache-busted assets, licensing metadata, hidden BLAST contact email behavior, and the 2.0.44 landing page.
+
 ## 2.0.43 – 2026-09-20
 
 - Fixed the FASTA workflow failure caused by the undefined `looksLikeAlignedFasta()` client helper.
