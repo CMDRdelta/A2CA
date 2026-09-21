@@ -4,6 +4,7 @@
   const BLAST_ENDPOINT='/api/ncbi/blast';
   const EFETCH_ENDPOINT='/api/ncbi/efetch';
   const TOOL='A2CA';
+  const NCBI_EMAIL='user@a2ca.app';
   let queryInfo=null;
   let running=false;
   let blastSession=null;
@@ -19,8 +20,6 @@
     blastSession=data;A2CA.session.publish(data);
   }
 
-  function emailValid(){const v=$('ncbiEmail').value.trim();return !v||/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v);}
-  function hasEmail(){return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test($('ncbiEmail').value.trim());}
   function transportReady(){return true;}
   function updateTransportStatus(){
     const el=$('ncbiTransportStatus');
@@ -157,7 +156,7 @@
       inputWorkflow:'blast',
       blastQuery:$('queryText').value,
       blastFetchIdentifier:$('queryFetchIdentifier').value.trim(),
-      blastEmail:$('ncbiEmail').value.trim(),
+      blastEmail:NCBI_EMAIL,
       blastReferenceName:selectedName,
       blastReferenceSequence:queryInfo?.sequence||'',
       blastMeta:{...(existing.blastMeta||{}),parameters:currentBlastParameters()},
@@ -171,18 +170,9 @@
     resetProgress();
     try{
       queryInfo=classifyQuery($('queryText').value);
-      const email=$('ncbiEmail').value.trim();
-      if(!email){
-        $('queryValidation').className='status';
-        $('queryValidation').textContent=`Valid query: ${queryInfo.label}. Enter a contact email to enable BLAST.`;
-      }else if(!hasEmail()){
-        $('queryValidation').className='status bad';
-        $('queryValidation').textContent=`Valid query: ${queryInfo.label}. The contact email is not valid.`;
-      }else{
-        $('queryValidation').className='status good';
-        $('queryValidation').textContent=`Valid query: ${queryInfo.label}. Contact email accepted.`;
-      }
-      $('runBlastBtn').disabled=running||!transportReady()||!hasEmail();
+      $('queryValidation').className='status good';
+      $('queryValidation').textContent=`Valid query: ${queryInfo.label}. Ready for NCBI BLAST.`;
+      $('runBlastBtn').disabled=running||!transportReady();
     }catch(e){
       queryInfo=null;$('queryValidation').className='status';
       if($('queryText').value.trim()){$('queryValidation').className='status bad';$('queryValidation').textContent='Error: '+e.message;}
@@ -223,7 +213,7 @@
         $('queryFetchStatus').textContent=`Fetching protein accession ${raw} from NCBI…`;
         const body=new URLSearchParams();
         body.set('db','protein');body.set('id',raw);body.set('rettype','fasta');body.set('retmode','text');body.set('tool',TOOL);
-        const email=$('ncbiEmail').value.trim();if(email)body.set('email',email);
+        const email=NCBI_EMAIL;if(email)body.set('email',email);
         const text=await fetchText(EFETCH_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body});
         const records=A2CA.parseFastaRaw(text);
         const names=Object.keys(records);
@@ -280,7 +270,6 @@
     }
     validateQuery();persistDraft();
   });
-  $('ncbiEmail').addEventListener('input',()=>{validateQuery();persistDraft();});
   ['blastDatabase','blastExpect','blastHits','blastMatrix','blastWordSize','blastGapCosts','blastComposition','blastFilter','blastShortQuery'].forEach(id=>{
     $(id).addEventListener('change',()=>{persistDraft();});
   });
@@ -365,7 +354,7 @@
     body.set('rettype','fasta');
     body.set('retmode','text');
     body.set('tool',TOOL);
-    const email=$('ncbiEmail').value.trim();
+    const email=NCBI_EMAIL;
     if(email)body.set('email',email);
     const text=await fetchText(EFETCH_ENDPOINT,{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded;charset=UTF-8'},body});
     const records=A2CA.parseFastaRaw(text);
@@ -379,7 +368,7 @@
 
   async function submitBlast(info){
     const body=new URLSearchParams();
-    const email=$('ncbiEmail').value.trim();
+    const email=NCBI_EMAIL;
     body.set('CMD','Put'); body.set('PROGRAM','blastp');
     body.set('DATABASE',$('blastDatabase').value); body.set('QUERY',info.query);
     body.set('EXPECT',$('blastExpect').value); body.set('HITLIST_SIZE',$('blastHits').value);
@@ -423,7 +412,7 @@
     while(true){
       ensurePollingActive();
       const url=new URL(BLAST_ENDPOINT,location.href);
-      url.searchParams.set('CMD','Get');url.searchParams.set('FORMAT_OBJECT','SearchInfo');url.searchParams.set('RID',rid);url.searchParams.set('tool',TOOL);url.searchParams.set('email',$('ncbiEmail').value.trim());
+      url.searchParams.set('CMD','Get');url.searchParams.set('FORMAT_OBJECT','SearchInfo');url.searchParams.set('RID',rid);url.searchParams.set('tool',TOOL);url.searchParams.set('email',NCBI_EMAIL);
       const text=await fetchText(url.toString());polls++;
       const info=parseQBlastInfo(text);
       if(!info){
@@ -491,7 +480,7 @@
     url.searchParams.set('DESCRIPTIONS',$('blastHits').value);
     url.searchParams.set('ALIGNMENTS',$('blastHits').value);
     url.searchParams.set('tool',TOOL);
-    url.searchParams.set('email',$('ncbiEmail').value.trim());
+    url.searchParams.set('email',NCBI_EMAIL);
     const table=await fetchText(url.toString());
     const hits=parseBlastTabular(table);
     return {table,hits};
@@ -533,7 +522,7 @@
   }
 
   function setInputsDisabled(disabled){
-    ['queryFile','queryFetchIdentifier','fetchQueryBtn','queryStructureChain','queryText','ncbiEmail','blastDatabase','blastExpect','blastHits','blastMatrix','blastWordSize','blastGapCosts','blastComposition','blastFilter','blastShortQuery'].forEach(id=>$(id).disabled=disabled);
+    ['queryFile','queryFetchIdentifier','fetchQueryBtn','queryStructureChain','queryText','blastDatabase','blastExpect','blastHits','blastMatrix','blastWordSize','blastGapCosts','blastComposition','blastFilter','blastShortQuery'].forEach(id=>$(id).disabled=disabled);
   }
 
 
@@ -578,7 +567,6 @@
       restoreStructureInput(data);
       if(data.blastQuery)$('queryText').value=data.blastQuery;
       if(data.blastFetchIdentifier)$('queryFetchIdentifier').value=data.blastFetchIdentifier;
-      if(data.blastEmail)$('ncbiEmail').value=data.blastEmail;
       if(data.blastMeta&&data.blastMeta.parameters){
         const p=data.blastMeta.parameters;
         if(p.database){
@@ -631,10 +619,10 @@
   }
 
   $('runBlastBtn').onclick=async()=>{
-    validateQuery();if(!queryInfo||running||!transportReady()||!hasEmail())return;
+    validateQuery();if(!queryInfo||running||!transportReady())return;
     persistDraft();
     running=true;pollStopRequested=false;clearTimeout(stopButtonTimer);setInputsDisabled(true);$('runBlastBtn').disabled=true;$('continueBlastBtn').disabled=true;$('viewBlastSequencesBtn').disabled=true;$('blastProgress').hidden=false;
-    const email=$('ncbiEmail').value.trim();
+    const email=NCBI_EMAIL;
     try{
       stepState('stepQuery','done');stepState('stepSubmit','active');setProgress(8,'Preparing BLASTP query…');
       const searchInfo=queryInfo;
@@ -684,7 +672,7 @@
       $('continueBlastBtn').disabled=true;$('viewBlastSequencesBtn').disabled=true;
     }finally{
       running=false;clearTimeout(stopButtonTimer);stopButtonTimer=null;$('stopBlastBtn').hidden=true;$('stopBlastBtn').disabled=false;$('stopBlastBtn').textContent='Stop BLAST run';
-      setInputsDisabled(false);$('runBlastBtn').disabled=!(queryInfo&&transportReady()&&hasEmail());
+      setInputsDisabled(false);$('runBlastBtn').disabled=!(queryInfo&&transportReady());
     }
   };
 

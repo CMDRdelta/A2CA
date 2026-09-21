@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>A2CA – Start analysis</title>
-<link rel="stylesheet" href="styles.css">
+<link rel="stylesheet" href="styles.css?v=2.0.44">
 </head>
 <body class="workflow-start-page">
 <div id="startView">
@@ -16,14 +16,14 @@
   <div class="container workflow-container">
     <section class="card hero start-version-card">
       <h1>A2CA: Amino Acid Cluster Analysis</h1>
-      <h2>Open Beta – web version <span data-a2ca-version>…</span></h2>
+      <h2>Web version <span data-a2ca-version>…</span></h2>
       <div class="start-version-content">
         <div class="start-version-text">
           <p>Protein function emerges from a highly coupled three-dimensional scaffold in which substitutions can influence interactions far beyond an active or binding site. This complexity makes it difficult to distinguish residues that merely vary from positions constrained by structure, chemistry, or compensatory evolution, complicating both mechanistic interpretation and rational protein engineering. A2CA integrates multiple sequence alignments, phylogenetic trees, amino-acid physicochemical properties, optional protein structures, and pairwise coevolution analyses to place residue-level variation into an evolutionary context and help prioritize positions for experimental investigation.</p>
           <p><b>Contact: </b><a href="https://www.linkedin.com/in/dr-daniel-eggerichs-7668241b7/">Dr. Daniel Eggerichs</a></p>
         </div>
         <div class="start-version-image">
-          <img src="assets/introduction.png" alt="Interactions in a protein">
+          <img src="assets/introduction.png?v=2.0.44" alt="Interactions in a protein">
         </div>
       </div>
     </section>
@@ -35,7 +35,7 @@
 
     <section class="workflow-grid workflow-grid-three" aria-label="Analysis start options">
       <article class="workflow-card available" data-workflow="blast">
-        <div class="workflow-art" style="background-image:url('assets/workflow_blast.png')"></div>
+        <div class="workflow-art" style="background-image:url('assets/workflow_blast.png?v=2.0.44')"></div>
         <div class="workflow-card-body">
           <h2>Single sequence</h2>
           <p>Find homologs from a protein sequence or structure using NCBI BLAST.</p>
@@ -44,7 +44,7 @@
       </article>
 
       <article class="workflow-card available" data-workflow="fasta">
-        <div class="workflow-art" style="background-image:url('assets/workflow_fasta.png')"></div>
+        <div class="workflow-art" style="background-image:url('assets/workflow_fasta.png?v=2.0.44')"></div>
         <div class="workflow-card-body">
           <h2>FASTA sequences</h2>
           <p>Align sequences and build a phylogenetic tree.</p>
@@ -53,7 +53,7 @@
       </article>
 
       <article class="workflow-card available">
-        <div class="workflow-art" style="background-image:url('assets/workflow_alignment_tree.png')"></div>
+        <div class="workflow-art" style="background-image:url('assets/workflow_alignment_tree.png?v=2.0.44')"></div>
         <div class="workflow-card-body">
           <h2>Alignment &amp; Tree</h2>
           <p>Upload a prepared alignment and phylogenetic tree.</p>
@@ -74,6 +74,9 @@
         <p>The original R/Shiny implementation of A2CA is archived as: D. Eggerichs, D. Tischler; Science Data Bank (2023), DOI: <a href="https://doi.org/10.57760/sciencedb.09549" target="_blank" rel="noopener noreferrer">www.doi.org/10.57760/sciencedb.09549</a>.</p>
         <p>Source code, version history, and future releases are maintained in the <a href="https://github.com/CMDRdelta/A2CA" target="_blank" rel="noopener noreferrer">A2CA GitHub repository</a>.</p>
 
+        <h3>Data privacy</h3>
+        <p>Most A2CA analysis data and saved sessions are handled locally in your browser. In the BLAST workflow, only the selected protein query sequence is forwarded to NCBI; uploaded structure files themselves are not sent to NCBI. Unaligned FASTA submitted for alignment and tree construction is processed on the A2CA server by MAFFT and FastTree and is not forwarded to a third-party alignment or tree service. Identifiers used to fetch NCBI Protein or RCSB PDB records are sent to the corresponding external service.</p>
+
         <h3>Software and services</h3>
         <ul class="resource-list resource-programs">
           <li><a href="https://mafft.cbrc.jp/alignment/software/" target="_blank" rel="noopener noreferrer">MAFFT</a>, executed on the A2CA server using the automatic strategy, for multiple-sequence alignment.</li>
@@ -87,16 +90,16 @@
     </details>
 
     <footer class="start-credit" aria-label="A2CA version and usage information">
-      <span>Last modified: 20 September 2026</span>
+      <span>Last modified: 21 September 2026</span>
       <span>Version <span data-a2ca-version>…</span></span>
-      <span>Copyright &copy; 2026 Daniel Eggerichs. A2CA may be freely used for research purposes.</span>
+      <span>Copyright &copy; 2026 Daniel Eggerichs. A2CA may be freely used, modified, and redistributed for noncommercial research and other noncommercial purposes under the <a href="../LICENSE" target="_blank" rel="noopener noreferrer">PolyForm Noncommercial License 1.0.0</a>.</span>
     </footer>
   </div>
 </div>
 
 <iframe id="appFrame" title="A2CA application" hidden></iframe>
 
-<script src="a2ca-core.js"></script>
+<script src="a2ca-core.js?v=2.0.44"></script>
 <script>
 'use strict';
 (function(){
@@ -123,6 +126,10 @@
     if(clear){
       appSession=null;
       A2CA.clearSession();
+      const input=document.getElementById('sessionFileInput');
+      const status=document.getElementById('sessionImportStatus');
+      if(input)input.value='';
+      if(status){status.hidden=true;status.textContent='';status.className='status small';}
     }
     frame.hidden=true;
     frame.src='about:blank';
